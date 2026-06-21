@@ -11,6 +11,7 @@ from textual.widgets import Header, Footer, Static, Label
 from textual.message import Message
 from textual.reactive import reactive
 from rich.markdown import Markdown
+from rich.markup import escape
 
 from ccs.readers import ClaudeReader, GeminiReader, OpenCodeReader, KilocodeReader
 from ccs.models import (
@@ -110,7 +111,7 @@ class SessionItem(Static):
 
     def render(self) -> str:
         title = self.session_data.get("title") or ""
-        return title if title else f"[dim]{self.session_id[:20]}[/]"
+        return escape(title) if title else f"[dim]{escape(self.session_id[:20])}[/]"
 
     def on_click(self) -> None:
         self.post_message(SessionSelected(self.session_id, self.session_data))
@@ -134,21 +135,21 @@ class SessionHeader(Static):
             return
         title = session.title or session.session_id
         lines = [
-            f"[bold]{title}[/]",
-            f"[dim]Session:[/] {session.session_id}",
-            f"[dim]Tool:[/] {session.tool_name}",
+            f"[bold]{escape(title)}[/]",
+            f"[dim]Session:[/] {escape(session.session_id)}",
+            f"[dim]Tool:[/] {escape(session.tool_name)}",
         ]
         if session.start_time:
             lines.append(
                 f"[bold]Started:[/] {session.start_time.strftime('%Y-%m-%d %H:%M:%S')}"
             )
         if session.working_directory:
-            lines.append(f"[dim]Directory:[/] {session.working_directory}")
+            lines.append(f"[dim]Directory:[/] {escape(session.working_directory)}")
         self.update("\n".join(lines))
 
 
 INITIAL_CHUNK = 30
-SCROLL_CHUNK = 10
+SCROLL_CHUNK = 20
 
 
 class LoadingIndicator(Static):
@@ -180,7 +181,6 @@ class ChatArea(VerticalScroll):
         self._loaded_count = 0
         self._all_loaded = True
         self._loading_more = False
-        self._mount_target = 0
         self._scroll_timer = None
         self._last_ts = None
 
@@ -198,16 +198,25 @@ class ChatArea(VerticalScroll):
         self.remove_children()
         self._all_messages = []
         self._loaded_count = 0
-        self._mount_target = 0
         self._all_loaded = True
         self._loading_more = False
         self.mount(LoadingIndicator("[dim]Loading session data...[/]"))
+
+    def _mount_batch(self, count: int) -> None:
+        """Build and mount a batch of messages in one call."""
+        widgets = []
+        for _ in range(count):
+            if self._loaded_count >= len(self._all_messages):
+                break
+            widgets.extend(self._build_message_widgets(self._all_messages[self._loaded_count]))
+            self._loaded_count += 1
+        if widgets:
+            self.mount(*widgets)
 
     def show_session(self, session) -> None:
         self.remove_children()
         self._all_messages = list(session.messages) if session else []
         self._loaded_count = 0
-        self._mount_target = 0
         self._all_loaded = False
         self._loading_more = False
         self._last_ts = None
@@ -219,25 +228,8 @@ class ChatArea(VerticalScroll):
             return
 
         self.scroll_y = 0
-        self.mount(LoadingIndicator("[dim]Structuring messages...[/]"))
-        self._mount_target = min(INITIAL_CHUNK, len(self._all_messages))
-        self._mount_next()
-
-    def _mount_next(self) -> None:
-        if self._loaded_count >= self._mount_target:
-            self._finish_batch()
-            return
-        self._mount_message(self._all_messages[self._loaded_count])
-        self._loaded_count += 1
-        self.call_later(self._mount_next)
-
-    def _finish_batch(self) -> None:
-        self._remove_loading_indicator()
-        if self._loaded_count >= len(self._all_messages):
-            self._all_loaded = True
-        else:
-            self.mount(LoadingIndicator("[dim]Scroll down to load more messages...[/]"))
-        self._loading_more = False
+        self._mount_batch(min(INITIAL_CHUNK, len(self._all_messages)))
+        self._all_loaded = self._loaded_count >= len(self._all_messages)
 
     def _load_more(self) -> None:
         self._loading_more = True
@@ -247,29 +239,24 @@ class ChatArea(VerticalScroll):
             self._loading_more = False
             return
 
-        self._remove_loading_indicator()
-        self.mount(LoadingIndicator("[dim]Loading more messages...[/]"))
-        self._mount_target = min(
-            self._loaded_count + SCROLL_CHUNK, len(self._all_messages)
-        )
-        self.call_later(self._mount_next)
+        batch = min(SCROLL_CHUNK, remaining)
+        self._mount_batch(batch)
+        self._all_loaded = self._loaded_count >= len(self._all_messages)
+        self._loading_more = False
 
-    def _remove_loading_indicator(self) -> None:
-        for w in self.query(LoadingIndicator):
-            w.remove()
-
-    def _mount_message(self, msg) -> None:
-        """Render a single message as one markdown string, mount as one Static."""
+    def _build_message_widgets(self, msg) -> list[Static]:
+        """Build widgets for a single message (no mounting)."""
+        result: list[Static] = []
         role = msg.role.upper()
         ts_str = format_timestamp(msg.timestamp, self._last_ts)
         self._last_ts = msg.timestamp
         model = msg.model
 
         if role == "USER":
-            self.mount(Static(f"[bold blue]USER[/] [dim]{ts_str}[/]"))
+            result.append(Static(f"[bold blue]USER[/] [dim]{ts_str}[/]"))
         else:
-            model_str = f" [dim]model: {model}[/]" if model else ""
-            self.mount(
+            model_str = f" [dim]model: {escape(model)}[/]" if model else ""
+            result.append(
                 Static(f"[bold green]ASSISTANT[/] [dim]{ts_str}[/]{model_str}")
             )
 
@@ -348,7 +335,7 @@ class ChatArea(VerticalScroll):
                 )
 
                 if parts:
-                    self.mount(Static(Markdown("\n".join(parts))))
+                    result.append(Static(Markdown("\n".join(parts))))
                     parts = []
 
                 table = Table(
@@ -357,12 +344,13 @@ class ChatArea(VerticalScroll):
                 table.add_column("Removed", style="red", no_wrap=False)
                 table.add_column("Added", style="green", no_wrap=False)
                 table.add_row(old_str, new_str)
-                self.mount(Static(table))
+                result.append(Static(table))
                 pos = end_marker + len(EDIT_END_MARKER)
 
         if parts:
-            self.mount(Static(Markdown("\n".join(parts))))
-        self.mount(Static("[dim]" + "─" * 60 + "[/]"))
+            result.append(Static(Markdown("\n".join(parts))))
+        result.append(Static("[dim]" + "─" * 60 + "[/]"))
+        return result
 
 
 class SessionSidebar(Container):
@@ -400,9 +388,8 @@ class SessionSidebar(Container):
             self.mount(Static("[dim]No sessions found[/]"))
             return
 
-        for session_data in self.sessions:
-            item = SessionItem(session_data)
-            self.mount(item)
+        items = [SessionItem(sd) for sd in self.sessions]
+        self.mount(*items)
 
 
 class CCSApp(App):
