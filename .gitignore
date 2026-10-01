@@ -1,8 +1,28 @@
-.venv/
+# Python
 __pycache__/
+*.py[cod]
+.venv/
+venv/
 *.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+.vite/
+bun.lockb
+
+# Editors / OS
 .DS_Store
-.obsidian/
-*.md
-!CHANGELOG.md
-!README.md
+.idea/
+.vscode/
+*.swp
+
+# Local overrides
+.env
+.env.local
+
+# Migration safety copies and staging checkout
+.migration/
+*.tsbuildinfo

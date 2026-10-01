@@ -1,0 +1,59 @@
+/** Typed API client. One function per endpoint, no client-side caching here — that is TanStack Query's job. */
+
+import type {
+  ArchiveResult,
+  ArchiveStats,
+  Block,
+  SearchHit,
+  SessionDetail,
+  SessionSummary,
+  SourceStatus,
+  Stats,
+} from "./types";
+
+async function get<T>(path: string): Promise<T> {
+  const response = await fetch(path, { headers: { Accept: "application/json" } });
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText} — ${path}`);
+  }
+  return response.json() as Promise<T>;
+}
+
+export const api = {
+  sources: () => get<SourceStatus[]>("/api/sources"),
+
+  sessions: (params: { sources?: string[]; includeSubagents?: boolean } = {}) => {
+    const query = new URLSearchParams();
+    params.sources?.forEach((s) => query.append("source", s));
+    if (params.includeSubagents) query.set("include_subagents", "true");
+    const suffix = query.toString();
+    return get<SessionSummary[]>(`/api/sessions${suffix ? `?${suffix}` : ""}`);
+  },
+
+  session: (id: string) => get<SessionDetail>(`/api/sessions/${encodeURI(id)}`),
+
+  /** Full payload for one elided block, addressed as `<messageIndex>.<blockIndex>`. */
+  block: (sessionId: string, ref: string) =>
+    get<Block>(`/api/sessions/${encodeURI(sessionId)}/blocks/${ref}`),
+
+  markdown: async (id: string) => {
+    const response = await fetch(`/api/sessions/${encodeURI(id)}/markdown`);
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    return response.text();
+  },
+
+  search: (query: string) =>
+    get<SearchHit[]>(`/api/search?q=${encodeURIComponent(query)}`),
+
+  stats: () => get<Stats>("/api/stats"),
+
+  archive: {
+    stats: () => get<ArchiveStats>("/api/archive"),
+    sessions: () => get<SessionSummary[]>("/api/archive/sessions"),
+    run: async () => {
+      const response = await fetch("/api/archive/run", { method: "POST" });
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      return (await response.json()) as ArchiveResult;
+    },
+  },
+};
