@@ -1,107 +1,47 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { GitBranch, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowLeft, GitBranch, X } from "lucide-react";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./ui/resizable";
+import { Button } from "./ui/button";
 
-/**
- * Two-column resizable split. The right pane is optional; when absent the left
- * fills the width, so the same component covers both "transcript only" and
- * "transcript + subagent".
- *
- * The divider drives a width in percent held in state, and pointer capture keeps
- * the drag alive when the cursor outruns the 4px handle.
- */
-export function SplitPane({
-  left,
-  right,
-  onCloseRight,
-  rightTitle,
-}: {
+export function SplitPane({ left, right, onCloseRight, rightTitle }: {
   left: ReactNode;
   right?: ReactNode | null;
   onCloseRight?: () => void;
   rightTitle?: ReactNode;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [leftPercent, setLeftPercent] = useState(58);
-  const [dragging, setDragging] = useState(false);
-
-  const onPointerMove = useCallback(
-    (event: PointerEvent) => {
-      const container = containerRef.current;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-      const ratio = ((event.clientX - rect.left) / rect.width) * 100;
-      setLeftPercent(Math.min(80, Math.max(25, ratio)));
-    },
-    [],
-  );
-
+  const container = useRef<HTMLDivElement>(null);
+  const [wide, setWide] = useState(false);
+  const [initialLayout] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("ccsweb.transcript.layout") ?? "null") ?? undefined; }
+    catch { return undefined; }
+  });
   useEffect(() => {
-    if (!dragging) return;
-    const stop = () => setDragging(false);
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", stop);
-    // Stop text selection fighting the drag.
-    document.body.style.userSelect = "none";
-    document.body.style.cursor = "col-resize";
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", stop);
-      document.body.style.userSelect = "";
-      document.body.style.cursor = "";
-    };
-  }, [dragging, onPointerMove]);
+    const element = container.current;
+    if (!element) return;
+    const observer = new ResizeObserver(entries => setWide(entries[0].contentRect.width >= 760));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
-  const hasRight = Boolean(right);
-
-  return (
-    <div ref={containerRef} className="flex min-h-0 flex-1">
-      <div
-        className="min-w-0"
-        style={{ width: hasRight ? `${leftPercent}%` : "100%" }}
-      >
-        {left}
-      </div>
-
-      {hasRight && (
-        <>
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            onPointerDown={() => setDragging(true)}
-            onDoubleClick={() => setLeftPercent(58)}
-            className={cn(
-              "group/divider relative w-px shrink-0 cursor-col-resize bg-border",
-              "transition-colors ease-swift hover:bg-ring",
-              dragging && "bg-ring",
-            )}
-          >
-            {/* Widen the hit area without widening the visual line. */}
-            <span className="absolute inset-y-0 -left-1.5 -right-1.5" />
-          </div>
-
-          <aside
-            className="animate-slide-in-right flex min-w-0 flex-col"
-            style={{ width: `${100 - leftPercent}%` }}
-          >
-            <div className="flex h-11 shrink-0 items-center gap-2.5 border-b border-border bg-muted/40 px-4">
-              <GitBranch size={14} className="shrink-0 text-agent" />
-              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-                {rightTitle}
-              </span>
-              <button
-                type="button"
-                onClick={onCloseRight}
-                aria-label="Close subagent pane"
-                className="rounded-sm px-1.5 text-muted-foreground transition-colors ease-swift hover:bg-accent hover:text-foreground"
-              >
-                <X size={14} />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1">{right}</div>
-          </aside>
-        </>
-      )}
+  const review = <aside className="flex h-full min-w-0 flex-col" aria-label="Agent run">
+    <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-3">
+      {!wide && <Button size="sm" onClick={onCloseRight} className="h-7 px-1.5"><ArrowLeft size={14} />Back to chat</Button>}
+      <GitBranch size={14} className="shrink-0 text-agent" />
+      <span className="min-w-0 flex-1 truncate text-xs font-medium">{rightTitle}</span>
+      <Button size="icon" onClick={onCloseRight} aria-label="Close agent run" className="h-7 w-7"><X size={14} /></Button>
     </div>
-  );
+    <div className="min-h-0 flex-1">{right}</div>
+  </aside>;
+
+  return <div ref={container} className="min-h-0 min-w-0 flex-1" data-layout={wide && right ? "split" : "single"}>
+    {wide && right ? <ResizablePanelGroup orientation="horizontal" id="transcript-layout" defaultLayout={initialLayout}
+      onLayoutChanged={(layout, meta) => { if (meta.isUserInteraction) localStorage.setItem("ccsweb.transcript.layout", JSON.stringify(layout)); }}>
+      <ResizablePanel id="parent-transcript" defaultSize="55%" minSize={340}>{left}</ResizablePanel>
+      <ResizableHandle withHandle aria-label="Resize transcript panes" />
+      <ResizablePanel id="agent-transcript" defaultSize="45%" minSize={320}>{review}</ResizablePanel>
+    </ResizablePanelGroup> : <div className="h-full min-w-0">
+      <div className={right ? "hidden" : "h-full"}>{left}</div>
+      {right && review}
+    </div>}
+  </div>;
 }

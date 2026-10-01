@@ -56,6 +56,8 @@ export interface Usage {
   input_tokens: number;
   output_tokens: number;
   cached_tokens: number;
+  cache_write_tokens: number;
+  cache_write_1h_tokens: number;
   thinking_tokens: number;
   tool_tokens: number;
   cost_usd: number | null;
@@ -91,10 +93,13 @@ export interface SessionSummary {
   created_at: string | null;
   updated_at: string | null;
   message_count: number;
+  counts_exact: boolean;
+  is_archived: boolean;
   /** Turns the human actually typed — what the UI leads with. */
   user_message_count: number;
   models: string[];
   usage: Usage;
+  cost_estimate: CostEstimate | null;
   is_subagent: boolean;
   parent_session_id: string | null;
   subagent_count: number;
@@ -102,6 +107,29 @@ export interface SessionSummary {
   fork_of: string | null;
   fork_count: number;
   source_path: string;
+}
+
+export interface CostEstimate {
+  estimated_usd: number | null;
+  priced_requests: number;
+  unpriced_requests: number;
+  unpriced_models: string[];
+  complete: boolean;
+  rates_verified_at: string;
+}
+
+export interface CostStats {
+  recorded_usd: number;
+  estimated_usd: number | null;
+  session_count: number;
+  processed_sessions: number;
+  estimated_sessions: number;
+  unpriced_sessions: number;
+  unpriced_models: string[];
+  updated_at: string | null;
+  running: boolean;
+  rates_verified_at: string;
+  sources: { name: string; url: string }[];
 }
 
 export interface SessionDetail extends SessionSummary {
@@ -128,6 +156,7 @@ export interface SearchHit {
 export interface Stats {
   session_count: number;
   message_count: number;
+  message_count_is_complete: boolean;
   /**
    * Reported as a breakdown, not one sum. Agent loops resend the whole
    * conversation each request, so summed `input` (and cache reads) counts the

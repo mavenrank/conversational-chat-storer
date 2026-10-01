@@ -40,27 +40,27 @@ export function MessageView({
   return (
     <article
       className={cn(
-        "group relative",
+        "message group relative",
         isUser
           ? // A distinct surface, not a tint: --user-surface sits several steps
             // off the page background so the turn reads as a card even in
             // peripheral vision.
-            "my-5 ml-5 mr-14 rounded-xl border border-user-border bg-user-surface px-6 py-5"
-          : cn("border-l-2 pl-6 pr-10", isError ? "border-destructive" : "border-border"),
-        !isUser && (continued ? "py-2" : "pb-4 pt-5"),
+            "message-user my-4 mx-4 rounded-lg border border-user-border bg-user-surface px-4 py-3.5"
+          : cn("message-agent mx-4 border-l-2 pl-4 pr-1", isError ? "border-destructive" : "border-border"),
+        !isUser && (continued ? "py-1.5" : "pb-3 pt-4"),
       )}
     >
       {isUser && <span className="absolute inset-y-0 left-0 w-1 rounded-l-lg bg-user" />}
 
       {!continued && (
-        <header className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <header className="message-header mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
           <span
             className={cn(
-              "text-[11px] font-bold uppercase tracking-widest",
+              "text-[11px] font-semibold uppercase tracking-wide",
               isUser ? "text-user" : isError ? "text-destructive" : "text-assistant",
             )}
           >
-            {isUser ? "User" : isError ? "Error" : "Agent"}
+            {isUser ? "User" : isError ? "Error" : message.role === "info" ? "Attachments" : "Agent"}
           </span>
 
           {message.is_sidechain && (
@@ -70,10 +70,10 @@ export function MessageView({
           )}
 
           {message.model && !isUser && (
-            <span className="mono text-xs text-foreground/60">{message.model}</span>
+            <span className="message-model max-w-[14rem] truncate text-[11px] text-foreground/60" title={message.model}>{message.model}</span>
           )}
 
-          <div className="mono flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] tabular-nums text-muted-foreground">
             {message.started_at && (
               <time title={message.started_at}>{formatTime(message.started_at)}</time>
             )}
@@ -100,7 +100,7 @@ export function MessageView({
             `message.text`, which is prose only — it dropped every tool call and
             every reasoning block, and pasted "undefined" besides.
           */}
-          <div className="ml-auto flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="message-actions ml-auto flex items-center gap-0.5 opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
             {hasScope(message, "answer") && (
               <CopyButton
                 label="Answer"

@@ -86,7 +86,7 @@ export function WorkSummary({
             Work
           </span>
 
-          <span className="mono flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-3 text-xs tabular-nums text-muted-foreground">
             {counts.thinking > 0 && (
               <Count
                 icon={<Brain size={13} className="text-assistant" />}

@@ -15,7 +15,7 @@ export function Markdown({ text }: { text: string }) {
 
 function parse(text: string): ReactNode[] {
   const out: ReactNode[] = [];
-  const lines = text.split("\n");
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
   let index = 0;
   let key = 0;
 
@@ -34,7 +34,7 @@ function parse(text: string): ReactNode[] {
       out.push(
         <pre
           key={key++}
-          className="overflow-x-auto rounded-md border border-border bg-background/70 p-3.5 font-mono text-xs leading-[1.7] text-foreground/75"
+          className="overflow-x-auto rounded-md border border-border bg-background/70 p-3.5 font-sans text-xs leading-[1.7] text-foreground/75"
         >
           {language && (
             <div className="mb-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -163,6 +163,13 @@ function parse(text: string): ReactNode[] {
       paragraph.push(lines[index]);
       index++;
     }
+    // A line can look like a block opener without matching its full grammar
+    // (for example a heading containing a Unicode line separator). Always
+    // consume it, otherwise this loop allocates paragraphs until the tab dies.
+    if (paragraph.length === 0) {
+      paragraph.push(line);
+      index++;
+    }
     out.push(
       <p key={key++} className="whitespace-pre-wrap">
         {inline(paragraph.join("\n"))}
@@ -205,7 +212,7 @@ function inline(text: string): ReactNode[] {
       out.push(
         <code
           key={key++}
-          className="rounded-sm bg-accent px-1 py-[1px] font-mono text-[0.9em] text-read"
+          className="rounded-sm bg-accent px-1 py-[1px] font-sans text-[0.9em] text-read"
         >
           {token.slice(1, -1)}
         </code>,

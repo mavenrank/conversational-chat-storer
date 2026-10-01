@@ -22,12 +22,14 @@ from ccsweb.config import get_settings
 from ccsweb.export.markdown import session_to_markdown
 from ccsweb.lazy import elide_session, locate_block
 from ccsweb.models import Block, SessionDetail, SessionSummary, Usage
+from ccsweb.pricing.service import CostService
 from ccsweb.registry import Registry, SourceStatus
 from ccsweb.search import SearchHit, search_sessions
 
 router = APIRouter(prefix="/api")
 
 _registry = Registry.from_settings()
+_costs = CostService(_registry)
 _archive = Archive(get_settings().archive_root)
 
 
@@ -40,7 +42,7 @@ class SourceOut(BaseModel):
     error: str | None = None
 
     @classmethod
-    def of(cls, status: SourceStatus) -> "SourceOut":
+    def of(cls, status: SourceStatus) -> SourceOut:
         return cls(**status.__dict__)
 
 
@@ -57,6 +59,7 @@ class StatsOut(BaseModel):
 
     session_count: int
     message_count: int
+    message_count_is_complete: bool
 
     input_tokens: int
     output_tokens: int
@@ -113,6 +116,7 @@ def get_session(session_id: str, full: bool = Query(default=False)) -> SessionDe
     session = _registry.get_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="session not found")
+    session.cost_estimate = _costs.session(session)
     if full:
         return session
     return elide_session(session, get_settings().elide_threshold_bytes)
@@ -154,6 +158,7 @@ def stats() -> StatsOut:
     return StatsOut(
         session_count=len(sessions),
         message_count=messages,
+        message_count_is_complete=all(s.counts_exact for s in sessions),
         input_tokens=totals.input_tokens,
         output_tokens=totals.output_tokens,
         cached_tokens=totals.cached_tokens,
@@ -168,6 +173,12 @@ def stats() -> StatsOut:
 # --------------------------------------------------------------------------- #
 # Archive
 # --------------------------------------------------------------------------- #
+
+
+@router.get("/costs")
+def costs() -> dict:
+    """Source-recorded amounts and current API estimates, calculated off the hot path."""
+    return _costs.snapshot()
 
 
 class ArchiveStatsOut(BaseModel):
@@ -196,7 +207,7 @@ def archive_sessions() -> list[SessionSummary]:
 
 
 @router.post("/archive/run", response_model=ArchiveResultOut)
-def archive_run(source: list[str] | None = Query(default=None)) -> "ArchiveResultOut":
+def archive_run(source: list[str] | None = Query(default=None)) -> ArchiveResultOut:
     """Snapshot every visible session into the local archive.
 
     Content-hashed, so re-running is cheap and unchanged sessions are skipped.

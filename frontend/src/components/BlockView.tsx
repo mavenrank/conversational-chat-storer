@@ -31,7 +31,7 @@ interface BlockViewProps {
 export function BlockView({ block, sessionId, blockRef, onOpenSubagent }: BlockViewProps) {
   if (block.kind === "text") {
     return (
-      <div className="group/text relative py-1.5 pl-4 pr-8">
+      <div className="group/text relative min-w-0 py-1 pr-5">
         <div className="prose-body">
           <Markdown text={block.text} />
         </div>

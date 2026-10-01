@@ -93,7 +93,7 @@ export function Accordion({
         <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
         {meta}
         {sizeBytes != null && sizeBytes > 0 && (
-          <span className="mono shrink-0 text-xs text-muted-foreground">
+          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
             {formatBytes(sizeBytes)}
           </span>
         )}

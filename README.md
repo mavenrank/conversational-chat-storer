@@ -17,8 +17,12 @@ for legacy commands, backup compatibility, and the remaining feature gaps.
 | OpenCode | `~/.local/share/opencode/opencode.db` (SQLite) | verified against real data |
 | Gemini CLI | `~/.gemini/tmp/<projectHash>/chats/*.json` | verified against real data |
 | Kilocode | `<VS Code globalStorage>/kilocode.kilo-code/tasks/<id>/` | verified against real data |
-| Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | verified against real data |
+| Codex CLI / Desktop | `~/.codex/sessions/`, `archived_sessions/`, optional `state_*.sqlite` index | verified against real data |
 | Claude Code | `~/.claude/projects/<encoded-cwd>/<uuid>.jsonl` | verified against real data |
+
+Ordinary ChatGPT and ChatGPT Work conversations are not currently supported.
+They need a separate history importer; reading Codex storage does not retrieve
+those histories. See [history coverage](docs/history-sources.md).
 
 Every root can be overridden, which is what makes the app work on WSL, portable
 installs, or a relocated `globalStorage`:
@@ -109,9 +113,16 @@ that spawned them.
 
 ### Reading live stores safely
 
-Everything is opened read-only, and SQLite is opened with `immutable=1` so a
-running agent is never locked or blocked. Malformed JSON lines are skipped
-rather than raised, because transcripts are frequently mid-write.
+Sources are opened read-only. Malformed JSON lines are skipped rather than
+raised, because transcripts are frequently mid-write. OpenCode currently uses
+SQLite's immutable mode and sees updates after its database checkpoints.
+
+Codex's metadata index uses short-lived read-only SQLite connections including
+the WAL so running chats stay current. Its list view reads metadata and a bounded
+transcript tail; full counts are calculated when a chat is opened. Source scans
+are shared across initial API requests, and the viewer refreshes active history
+every ten seconds. API dates explicitly carry UTC; the UI displays local dates
+and times, including the timezone on full dates.
 
 ## Testing
 
