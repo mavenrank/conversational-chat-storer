@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Project migration
+
+- Continue the original `conversational-chat-storer` Git history with the web
+  implementation. Preserve the last TUI commit as `legacy-tui`, retain the
+  `fix/windows-perf` branch, and use GitHub as the sole remote.
+- Include backend and frontend dependency lockfiles. Keep installed dependencies,
+  build output, and migration safety copies outside the tracked source.
+- Document the TUI-to-web compatibility changes in `docs/migration.md`. The
+  original TUI changelog is preserved in `docs/legacy-tui-changelog.md`.
+- Add the missing Node.js type definitions needed by the Vite configuration.
+- Fix Gemini cached-input double counting by normalizing input to uncached
+  tokens before computing totals or costs. Gemini's prompt count already
+  includes cached content, as documented in
+  [Google's usage metadata reference](https://ai.google.dev/api/generate-content#UsageMetadata).
+- Update the archive-root test fixture and move the export fence regression
+  check to file writes. File-read exports intentionally retain only the file
+  path and byte count.
+
 ### Fixed (data correctness)
 
 - **One conversation was listed as seven sessions.** Claude Code writes a brand

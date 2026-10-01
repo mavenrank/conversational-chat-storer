@@ -6,6 +6,7 @@ from ccsweb.export.markdown import session_to_markdown
 from ccsweb.lazy import elide_session, locate_block, parse_block_ref
 from ccsweb.models import (
     FileReadDetail,
+    FileWriteDetail,
     Message,
     SessionDetail,
     TextBlock,
@@ -157,9 +158,20 @@ def test_markdown_export_shape():
 def test_export_fence_cannot_be_escaped():
     """A file containing ``~~~`` must not break out of its own fence."""
     session = _session()
-    session.messages[1].blocks[1].detail.content = "~~~\nnot the end\n~~~"
+    session.messages[1].blocks[1].detail = FileWriteDetail(
+        path="a.py", content="~~~\nnot the end\n~~~"
+    )
     markdown = session_to_markdown(session)
     assert "~~~~" in markdown, "fence should widen past the content"
+
+
+def test_export_file_reads_keep_metadata_without_copying_file_contents():
+    session = _session()
+    session.messages[1].blocks[1].detail.content = "private file contents"
+    markdown = session_to_markdown(session)
+    assert "#### Read: a.py" in markdown
+    assert "*21 bytes*" in markdown
+    assert "private file contents" not in markdown
 
 
 def test_unbalanced_code_fence_is_closed():

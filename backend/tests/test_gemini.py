@@ -101,9 +101,12 @@ def test_assistant_metadata_is_parsed(root: Path):
     assistant = detail.messages[1]
     assert assistant.model == "gemini-3-flash-preview"
     assert assistant.usage is not None
-    assert assistant.usage.input_tokens == 6911
+    assert assistant.usage.input_tokens == 3810, "uncached input only"
+    assert assistant.usage.cached_tokens == 3101
+    assert assistant.usage.context_tokens == 6911, "cached input is part of the prompt"
     assert assistant.usage.thinking_tokens == 49
     assert assistant.usage.total_tokens == 7045, "matches Gemini's own total"
+    assert detail.usage.total_tokens == 7045, "session aggregation retains the same total"
 
     thinking = [b for b in assistant.blocks if isinstance(b, ThinkingBlock)]
     assert thinking and thinking[0].subject == "Initiating Analysis"

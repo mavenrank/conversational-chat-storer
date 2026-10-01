@@ -89,6 +89,7 @@ def test_registry_hides_subagents_by_default(root: Path, tmp_path: Path):
         opencode_root=root,
         kilocode_root=tmp_path / "none",
         codex_root=tmp_path / "none",
+        archive_root=tmp_path / "archive",
     )
     registry = Registry.from_settings(settings)
 

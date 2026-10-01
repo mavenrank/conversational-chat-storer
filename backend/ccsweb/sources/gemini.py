@@ -189,10 +189,14 @@ def _parse_usage(raw: dict[str, Any]) -> Usage | None:
     tokens = raw.get("tokens")
     if not isinstance(tokens, dict):
         return None
+    # Gemini's input includes the cached part of the prompt. Our Usage model
+    # keeps the two disjoint, as OpenCode and Claude report them, so totals and
+    # pricing must not count cached input at the full input rate a second time.
+    cached = int(tokens.get("cached") or 0)
     return Usage(
-        input_tokens=int(tokens.get("input") or 0),
+        input_tokens=max(0, int(tokens.get("input") or 0) - cached),
         output_tokens=int(tokens.get("output") or 0),
-        cached_tokens=int(tokens.get("cached") or 0),
+        cached_tokens=cached,
         thinking_tokens=int(tokens.get("thoughts") or 0),
         tool_tokens=int(tokens.get("tool") or 0),
     )

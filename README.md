@@ -4,6 +4,12 @@ A unified, read-only web viewer for chat history across AI coding tools. Reads
 each tool's native storage directly: no wrapper, no daemon, no impact on the
 tools themselves.
 
+This is the web continuation of
+[`mavenrank/conversational-chat-storer`](https://github.com/mavenrank/conversational-chat-storer).
+The original TUI history is retained; the `legacy-tui` tag marks its last
+checkpoint before the web rewrite. See [the migration guide](docs/migration.md)
+for legacy commands, backup compatibility, and the remaining feature gaps.
+
 ## Supported sources
 
 | Tool | Storage | Status |
