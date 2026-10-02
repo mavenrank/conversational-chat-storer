@@ -16,7 +16,12 @@ export interface HeavyMeta {
 }
 
 export type ToolDetail =
-  | ({ category: "file_read"; path: string; content: string; truncated: boolean } & HeavyMeta)
+  | ({
+      category: "file_read";
+      path: string;
+      content: string;
+      truncated: boolean;
+    } & HeavyMeta)
   | ({ category: "file_write"; path: string; content: string } & HeavyMeta)
   | ({
       category: "file_edit";
@@ -27,7 +32,12 @@ export type ToolDetail =
       additions: number;
       deletions: number;
     } & HeavyMeta)
-  | ({ category: "command"; command: string; output: string; exit_code: number | null } & HeavyMeta)
+  | ({
+      category: "command";
+      command: string;
+      output: string;
+      exit_code: number | null;
+    } & HeavyMeta)
   | ({ category: "search"; query: string; output: string } & HeavyMeta)
   | ({
       category: "subagent";
@@ -37,11 +47,21 @@ export type ToolDetail =
       result: string;
       child_session_id: string | null;
     } & HeavyMeta)
-  | ({ category: "generic"; input: Record<string, unknown>; output: string } & HeavyMeta);
+  | ({
+      category: "generic";
+      input: Record<string, unknown>;
+      output: string;
+    } & HeavyMeta);
 
 export type Block =
   | { kind: "text"; text: string }
-  | { kind: "thinking"; text: string; subject: string | null; elided: boolean; size_bytes: number }
+  | {
+      kind: "thinking";
+      text: string;
+      subject: string | null;
+      elided: boolean;
+      size_bytes: number;
+    }
   | {
       kind: "tool_use";
       tool_id: string | null;
@@ -56,6 +76,8 @@ export interface Usage {
   input_tokens: number;
   output_tokens: number;
   cached_tokens: number;
+  cache_write_tokens: number;
+  cache_write_1h_tokens: number;
   thinking_tokens: number;
   tool_tokens: number;
   cost_usd: number | null;
@@ -91,22 +113,58 @@ export interface SessionSummary {
   created_at: string | null;
   updated_at: string | null;
   message_count: number;
+  counts_exact: boolean;
+  run_status: "running" | "idle" | "unknown";
+  status_updated_at: string | null;
+  is_archived: boolean;
   /** Turns the human actually typed — what the UI leads with. */
   user_message_count: number;
   models: string[];
   usage: Usage;
+  cost_estimate: CostEstimate | null;
   is_subagent: boolean;
+  is_approval_review: boolean;
   parent_session_id: string | null;
   subagent_count: number;
+  approval_review_count: number;
   is_fork: boolean;
   fork_of: string | null;
   fork_count: number;
   source_path: string;
 }
 
+export interface CostEstimate {
+  estimated_usd: number | null;
+  priced_requests: number;
+  unpriced_requests: number;
+  unpriced_models: string[];
+  missing_usage_tokens: number;
+  calculated_at: string | null;
+  is_stale: boolean;
+  complete: boolean;
+  rates_verified_at: string;
+}
+
+export interface CostStats {
+  recorded_usd: number;
+  estimated_usd: number | null;
+  session_count: number;
+  processed_sessions: number;
+  estimated_sessions: number;
+  unpriced_sessions: number;
+  failed_sessions: number;
+  error: string | null;
+  unpriced_models: string[];
+  updated_at: string | null;
+  running: boolean;
+  rates_verified_at: string;
+  sources: { name: string; url: string }[];
+}
+
 export interface SessionDetail extends SessionSummary {
   messages: Message[];
   subagents: SessionSummary[];
+  approval_reviews: SessionSummary[];
   forks: SessionSummary[];
 }
 
@@ -128,6 +186,7 @@ export interface SearchHit {
 export interface Stats {
   session_count: number;
   message_count: number;
+  message_count_is_complete: boolean;
   /**
    * Reported as a breakdown, not one sum. Agent loops resend the whole
    * conversation each request, so summed `input` (and cache reads) counts the
@@ -143,7 +202,6 @@ export interface Stats {
   by_source: Record<string, number>;
   by_model: Record<string, number>;
 }
-
 
 export interface ArchiveStats {
   session_count: number;

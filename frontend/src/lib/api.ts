@@ -9,10 +9,13 @@ import type {
   SessionSummary,
   SourceStatus,
   Stats,
+  CostStats,
 } from "./types";
 
 async function get<T>(path: string): Promise<T> {
-  const response = await fetch(path, { headers: { Accept: "application/json" } });
+  const response = await fetch(path, {
+    headers: { Accept: "application/json" },
+  });
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText} — ${path}`);
   }
@@ -22,12 +25,29 @@ async function get<T>(path: string): Promise<T> {
 export const api = {
   sources: () => get<SourceStatus[]>("/api/sources"),
 
-  sessions: (params: { sources?: string[]; includeSubagents?: boolean } = {}) => {
+  sessions: async (
+    params: {
+      sources?: string[];
+      includeSubagents?: boolean;
+      includeApprovalReviews?: boolean;
+    } = {},
+  ) => {
     const query = new URLSearchParams();
     params.sources?.forEach((s) => query.append("source", s));
     if (params.includeSubagents) query.set("include_subagents", "true");
-    const suffix = query.toString();
-    return get<SessionSummary[]>(`/api/sessions${suffix ? `?${suffix}` : ""}`);
+    if (params.includeApprovalReviews)
+      query.set("include_approval_reviews", "true");
+    // The server's default page holds only 200 chats. Keep fetching rather
+    // than silently dropping older history from the sidebar and its search.
+    const pageSize = 1000;
+    query.set("limit", String(pageSize));
+    const sessions = new Map<string, SessionSummary>();
+    for (let offset = 0; ; offset += pageSize) {
+      query.set("offset", String(offset));
+      const page = await get<SessionSummary[]>(`/api/sessions?${query}`);
+      page.forEach((session) => sessions.set(session.id, session));
+      if (page.length < pageSize) return [...sessions.values()];
+    }
   },
 
   session: (id: string) => get<SessionDetail>(`/api/sessions/${encodeURI(id)}`),
@@ -38,7 +58,8 @@ export const api = {
 
   markdown: async (id: string) => {
     const response = await fetch(`/api/sessions/${encodeURI(id)}/markdown`);
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    if (!response.ok)
+      throw new Error(`${response.status} ${response.statusText}`);
     return response.text();
   },
 
@@ -46,13 +67,21 @@ export const api = {
     get<SearchHit[]>(`/api/search?q=${encodeURIComponent(query)}`),
 
   stats: () => get<Stats>("/api/stats"),
+  costs: () => get<CostStats>("/api/costs"),
+  refreshCosts: async () => {
+    const response = await fetch("/api/costs/refresh", { method: "POST" });
+    if (!response.ok)
+      throw new Error(`${response.status} ${response.statusText}`);
+    return (await response.json()) as CostStats;
+  },
 
   archive: {
     stats: () => get<ArchiveStats>("/api/archive"),
     sessions: () => get<SessionSummary[]>("/api/archive/sessions"),
     run: async () => {
       const response = await fetch("/api/archive/run", { method: "POST" });
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      if (!response.ok)
+        throw new Error(`${response.status} ${response.statusText}`);
       return (await response.json()) as ArchiveResult;
     },
   },

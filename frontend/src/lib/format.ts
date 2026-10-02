@@ -26,16 +26,22 @@ export function formatDuration(ms: number | null): string | null {
 }
 
 /** Absolute time — the user asked to see exactly when things were sent. */
+export function parseTimestamp(iso: string): Date {
+  // Older backups used naive UTC; current API responses explicitly end in Z.
+  const value = iso.trim();
+  return new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`);
+}
+
 export function formatTime(iso: string | null): string {
   if (!iso) return "";
-  const date = new Date(iso);
+  const date = parseTimestamp(iso);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 export function formatDateTime(iso: string | null): string {
   if (!iso) return "";
-  const date = new Date(iso);
+  const date = parseTimestamp(iso);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleString([], {
     year: "numeric",
@@ -43,13 +49,16 @@ export function formatDateTime(iso: string | null): string {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZoneName: "short",
   });
 }
 
 export function formatRelative(iso: string | null): string {
   if (!iso) return "";
-  const date = new Date(iso);
+  const date = parseTimestamp(iso);
+  if (Number.isNaN(date.getTime())) return "";
   const seconds = (Date.now() - date.getTime()) / 1000;
+  if (seconds < -60) return formatDateTime(iso);
   if (seconds < 60) return "just now";
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;

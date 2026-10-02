@@ -30,9 +30,19 @@ CACHE_PATH = Path(__file__).with_name("model_cache.json")
 #: these to Modelly produces confusing "no pricing for xAI" output; they are
 #: vendors, placeholders, or artefacts.
 _NOT_MODELS = {
-    "<synthetic>", "synthetic", "unknown", "none", "null", "",
+    "<synthetic>",
+    "synthetic",
+    "unknown",
+    "none",
+    "null",
+    "",
     # Vendor names, in case an adapter still leaks one through.
-    "minimax", "xai", "anthropic", "openai", "google", "deepseek",
+    "minimax",
+    "xai",
+    "anthropic",
+    "openai",
+    "google",
+    "deepseek",
 }
 
 
@@ -44,7 +54,9 @@ def collect_pairs(registry: Registry) -> set[tuple[str, str]]:
     fast enough to run over a few hundred sessions.
     """
     pairs: set[tuple[str, str]] = set()
-    for summary in registry.list_sessions(include_subagents=True, include_forks=True):
+    for summary in registry.list_sessions(
+        include_subagents=True, include_forks=True, include_approval_reviews=True
+    ):
         providers = summary.providers or [""]
         for model in summary.models:
             if model.strip().lower() in _NOT_MODELS:
@@ -62,7 +74,9 @@ def sessions_without_models(registry: Registry) -> dict[str, int]:
     catalog and must fall back to the ``cost`` the tool recorded itself.
     """
     counts: dict[str, int] = {}
-    for summary in registry.list_sessions(include_subagents=True, include_forks=True):
+    for summary in registry.list_sessions(
+        include_subagents=True, include_forks=True, include_approval_reviews=True
+    ):
         usable = [m for m in summary.models if m.strip().lower() not in _NOT_MODELS]
         if not usable:
             counts[summary.source] = counts.get(summary.source, 0) + 1
@@ -89,9 +103,11 @@ def main() -> int:
         print("\nOpen the Modelly desktop app, then run this again.")
         return 1
 
-    print(f"Modelly: {health.get('models', 0)} models, "
-          f"{health.get('priced_offerings', 0)} priced offerings, "
-          f"last refresh {health.get('last_refresh_at', 'unknown')}")
+    print(
+        f"Modelly: {health.get('models', 0)} models, "
+        f"{health.get('priced_offerings', 0)} priced offerings, "
+        f"last refresh {health.get('last_refresh_at', 'unknown')}"
+    )
     if not health.get("priced_offerings"):
         print("\nThe catalog is empty. Run a refresh in Modelly's Sources tab first.")
         return 1
@@ -109,8 +125,10 @@ def main() -> int:
 
     models = sorted({m for _, m in wanted})
     providers = sorted({p for p, _ in wanted if p})
-    print(f"{len(models)} distinct model(s) across "
-          f"{len(providers)} provider(s): {', '.join(providers) or 'none recorded'}\n")
+    print(
+        f"{len(models)} distinct model(s) across "
+        f"{len(providers)} provider(s): {', '.join(providers) or 'none recorded'}\n"
+    )
 
     resolved, missing = [], []
     for model in models:

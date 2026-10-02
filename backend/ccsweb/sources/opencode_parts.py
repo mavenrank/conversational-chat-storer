@@ -27,7 +27,6 @@ import json
 import re
 from typing import Any
 
-from ccsweb.sources.trim import trim_tool_output
 from ccsweb.models import (
     Block,
     CommandDetail,
@@ -42,6 +41,7 @@ from ccsweb.models import (
     ToolUseBlock,
     Usage,
 )
+from ccsweb.sources.trim import trim_tool_output
 
 #: opencode prefixes a task tool's output with the child session id.
 TASK_ID_RE = re.compile(r"^task_id:\s*(?P<sid>\S+)")
@@ -96,6 +96,7 @@ def parse_step_finish(part: dict[str, Any]) -> tuple[Usage | None, float | None]
         output_tokens=int(tokens.get("output") or 0),
         thinking_tokens=int(tokens.get("reasoning") or 0),
         cached_tokens=int((cache or {}).get("read") or 0),
+        cache_write_tokens=int((cache or {}).get("write") or 0),
         cost_usd=float(cost) if isinstance(cost, (int, float)) else None,
     )
     return usage, usage.cost_usd

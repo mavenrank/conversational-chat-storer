@@ -14,16 +14,14 @@ import "@fontsource/geist-sans/400.css";
 import "@fontsource/geist-sans/500.css";
 import "@fontsource/geist-sans/600.css";
 import "@fontsource/geist-sans/700.css";
-import "@fontsource/geist-mono/400.css";
-import "@fontsource/geist-mono/500.css";
 
 import "./index.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Transcripts are immutable once written, so refetching on focus is waste.
-      refetchOnWindowFocus: false,
+      // Running chats keep changing while the viewer is in the background.
+      refetchOnWindowFocus: true,
       staleTime: 30_000,
       retry: 1,
     },

@@ -1,165 +1,300 @@
-import { useMemo, useState, type ReactNode } from "react";
-import { ArrowUp, GitBranch, Search, X } from "lucide-react";
+import { useMemo, type ReactNode } from "react";
+import {
+  ArrowDownWideNarrow,
+  GitBranch,
+  Search,
+  ShieldCheck,
+  X,
+} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import type { SessionSummary } from "@/lib/types";
-import { formatRelative, formatTokens } from "@/lib/format";
+import { formatDateTime, formatRelative, formatTokens } from "@/lib/format";
+import { SOURCE_STYLE } from "@/lib/sources";
 import { cn } from "@/lib/utils";
-
-const SOURCE_DOT: Record<string, string> = {
-  opencode: "bg-opencode",
-  gemini: "bg-gemini",
-  kilocode: "bg-kilocode",
-  codex: "bg-codex",
-  claude: "bg-claude",
-};
+import { SourceIcon } from "./SourceIcon";
+import { RunStatus } from "./RunStatus";
+import { RunSpinner } from "./RunSpinner";
+import {
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "./ui/sidebar";
+import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 
 export function SessionList({
   sessions,
+  sources,
+  onSourcesChange,
+  filter,
+  onFilterChange,
   activeId,
   openIds,
   loading,
+  includeSubagents,
+  onIncludeSubagentsChange,
   onOpen,
   onPin,
+  canSortByLatest,
+  onSortByLatest,
 }: {
   sessions: SessionSummary[];
+  sources: string[];
+  onSourcesChange: (value: string[]) => void;
+  filter: string;
+  onFilterChange: (value: string) => void;
   activeId: string | null;
   openIds: string[];
   loading: boolean;
+  includeSubagents: boolean;
+  onIncludeSubagentsChange: (value: boolean) => void;
   onOpen: (session: SessionSummary) => void;
   onPin: (session: SessionSummary) => void;
+  canSortByLatest: boolean;
+  onSortByLatest: () => void;
 }) {
-  const [filter, setFilter] = useState("");
   const open = useMemo(() => new Set(openIds), [openIds]);
-
+  const { data: availableSources } = useQuery({
+    queryKey: ["sources"],
+    queryFn: api.sources,
+    refetchInterval: 30_000,
+  });
   const visible = useMemo(() => {
     const needle = filter.trim().toLowerCase();
-    if (!needle) return sessions;
-    return sessions.filter(
-      (s) =>
-        s.title.toLowerCase().includes(needle) ||
-        s.cwd.toLowerCase().includes(needle) ||
-        s.models.some((m) => m.toLowerCase().includes(needle)),
-    );
+    return needle
+      ? sessions.filter(
+          (s) =>
+            s.title.toLowerCase().includes(needle) ||
+            s.cwd.toLowerCase().includes(needle) ||
+            s.models.some((m) => m.toLowerCase().includes(needle)),
+        )
+      : sessions;
   }, [sessions, filter]);
+  const runningCount = visible.filter(
+    (session) => session.run_status === "running",
+  ).length;
 
   return (
-    <div className="flex h-full flex-col border-r border-border bg-muted/25">
-      <div className="shrink-0 p-3">
-        <div className="flex items-center gap-2.5 rounded-md border border-input bg-background px-3 py-2.5 transition-colors ease-swift focus-within:border-ring">
+    <div className="flex h-full min-w-0 flex-col">
+      <SidebarHeader className="gap-2.5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[13px] font-semibold">History</h2>
+          <div className="flex items-center gap-2">
+            {sources.length > 0 && (
+              <button
+                type="button"
+                onClick={() => onSourcesChange([])}
+                className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                title="Show all sources"
+              >
+                All sources
+              </button>
+            )}
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {loading
+                ? "Loading…"
+                : `${visible.length} ${visible.length === 1 ? "chat" : "chats"}`}
+            </span>
+          </div>
+        </div>
+        <div className="flex min-h-6 items-center justify-between gap-2 text-[11px] text-muted-foreground">
+          <span
+            className="inline-flex items-center gap-1.5"
+            aria-label={`${runningCount} running chats`}
+            title={`${runningCount} chats have recent unfinished turns`}
+          >
+            <RunSpinner size={12} active={runningCount > 0} />
+            <span aria-hidden="true">{runningCount}</span>
+          </span>
+          <button
+            type="button"
+            onClick={onSortByLatest}
+            disabled={!canSortByLatest}
+            title="Apply latest activity order. Background updates keep rows in place."
+            className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-accent hover:text-foreground disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ArrowDownWideNarrow size={12} />
+            Sort by latest
+          </button>
+        </div>
+        <ToggleGroup
+          type="multiple"
+          value={sources}
+          onValueChange={onSourcesChange}
+          size="sm"
+          aria-label="Filter chat sources"
+          className="grid grid-cols-5 gap-1"
+        >
+          {availableSources?.map((source) => {
+            const style = SOURCE_STYLE[source.id];
+            return (
+              <ToggleGroupItem
+                key={source.id}
+                value={source.id}
+                disabled={!source.available}
+                aria-label={source.display_name}
+                title={
+                  source.available
+                    ? `${source.display_name}: ${source.session_count} chats`
+                    : (source.error ?? "No local history found")
+                }
+                className={cn(
+                  "h-8 min-w-0 justify-center gap-1 rounded-md border border-border/70 px-1",
+                  sources.length === 0 || sources.includes(source.id)
+                    ? "bg-background"
+                    : "opacity-50",
+                )}
+              >
+                <SourceIcon
+                  source={source.id}
+                  className={cn("h-4 w-4", style.text)}
+                />
+                <span className="text-[10px] tabular-nums text-muted-foreground">
+                  {source.session_count}
+                </span>
+              </ToggleGroupItem>
+            );
+          })}
+        </ToggleGroup>
+        <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-background px-2.5 focus-within:border-ring">
           <Search size={14} className="shrink-0 text-muted-foreground" />
           <input
             value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder="Filter sessions"
-            className="w-full bg-transparent text-[13px] placeholder:text-muted-foreground focus:outline-none"
+            onChange={(event) => onFilterChange(event.target.value)}
+            placeholder="Search chats"
+            aria-label="Search chats"
+            className="min-w-0 flex-1 bg-transparent text-[13px] placeholder:text-muted-foreground focus:outline-none"
           />
           {filter && (
             <button
               type="button"
-              onClick={() => setFilter("")}
-              className="text-muted-foreground transition-colors ease-swift hover:text-foreground"
+              onClick={() => onFilterChange("")}
+              aria-label="Clear search"
+              className="rounded p-0.5 text-muted-foreground hover:text-foreground"
             >
               <X size={13} />
             </button>
           )}
         </div>
-      </div>
+      </SidebarHeader>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {loading && <Empty>Loading sessions…</Empty>}
-        {!loading && visible.length === 0 && <Empty>No sessions</Empty>}
-
-        {visible.map((session) => {
-          const active = activeId === session.id;
-          return (
-            <button
-              key={session.id}
-              type="button"
-              onClick={() => onOpen(session)}
-              onDoubleClick={() => onPin(session)}
-              className={cn(
-                "relative block w-full border-b border-border/40 px-3 py-3 text-left",
-                "transition-colors ease-swift",
-                active ? "bg-background" : "hover:bg-background/60",
-              )}
-            >
-              {active && (
-                <span className="absolute inset-y-0 left-0 w-[3px] bg-primary" />
-              )}
-
-              {/*
-                Two lines, not four. The source is a 3px colour bar rather than
-                a text label — the colour already identifies the tool, so the
-                word was pure duplication. Everything else collapses onto one
-                metadata line with the full detail in its tooltip.
-              */}
-              <div className="flex items-start gap-2.5">
-                <span
+      <SidebarContent>
+        {loading && <Empty>Loading chats…</Empty>}
+        {!loading && visible.length === 0 && (
+          <Empty>No chats match your search.</Empty>
+        )}
+        <SidebarMenu>
+          {visible.map((session) => {
+            const active = activeId === session.id;
+            const style = SOURCE_STYLE[session.source];
+            return (
+              <SidebarMenuItem key={session.id}>
+                <SidebarMenuButton
+                  isActive={active}
+                  onClick={() => onOpen(session)}
+                  onDoubleClick={() => onPin(session)}
+                  title={`${session.title}\n${session.models.join(", ")}\n${formatTokens(session.usage.output_tokens)} tokens generated\n${session.cwd}`}
                   className={cn(
-                    "mt-1 h-3.5 w-[3px] shrink-0 rounded-full",
-                    SOURCE_DOT[session.source] ?? "bg-muted-foreground",
-                  )}
-                  title={session.source}
-                />
-                <span
-                  className={cn(
-                    "line-clamp-2 flex-1 text-sm leading-snug",
-                    active ? "font-semibold text-foreground" : "text-foreground/85",
+                    "pl-4",
+                    active ? style.active : "hover:bg-sidebar-accent",
                   )}
                 >
-                  {session.title}
-                </span>
-                {open.has(session.id) && !active && (
                   <span
-                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground"
-                    title="Open in a tab"
+                    className={cn(
+                      "absolute left-0 rounded-r-full",
+                      style.rail,
+                      active ? "inset-y-0 w-1.5" : "inset-y-2 w-1",
+                    )}
                   />
-                )}
-              </div>
-
-              <div className="mono mt-1.5 flex items-center gap-2 pl-[22px] text-[11px] text-muted-foreground">
-                <span className="shrink-0">
-                  {formatRelative(session.updated_at ?? session.created_at)}
-                </span>
-                {session.user_message_count > 0 && (
-                  <span
-                    className="shrink-0"
-                    title={`${session.message_count} turns in total`}
-                  >
-                    · {session.user_message_count}p
-                  </span>
-                )}
-                {session.usage.output_tokens > 0 && (
-                  <span
-                    className="flex shrink-0 items-center gap-0.5"
-                    title="Tokens generated"
-                  >
-                    · <ArrowUp size={10} strokeWidth={2.5} />
-                    {formatTokens(session.usage.output_tokens)}
-                  </span>
-                )}
-                {session.subagent_count > 0 && (
-                  <span
-                    className="flex shrink-0 items-center gap-0.5 text-agent"
-                    title="Subagent runs"
-                  >
-                    · <GitBranch size={10} strokeWidth={2.5} />
-                    {session.subagent_count}
-                  </span>
-                )}
-                {session.project?.name && (
-                  <span className="truncate opacity-60" title={session.cwd}>
-                    · {session.project.name}
-                  </span>
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+                  <div className="flex items-start gap-2">
+                    <span className="line-clamp-2 min-w-0 flex-1 pr-3 text-[13px] font-medium leading-[1.45] text-foreground">
+                      {session.title || "Untitled chat"}
+                    </span>
+                    {open.has(session.id) && !active && (
+                      <span
+                        className="absolute right-3 top-4 h-1.5 w-1.5 rounded-full bg-muted-foreground"
+                        title="Open in a tab"
+                      />
+                    )}
+                  </div>
+                  <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                    <span
+                      className={cn(
+                        "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold",
+                        style.background,
+                        style.text,
+                      )}
+                    >
+                      <SourceIcon source={session.source} className="h-3 w-3" />
+                      {style.label}
+                    </span>
+                    <RunStatus session={session} compact />
+                    <span
+                      className="shrink-0 tabular-nums"
+                      title={formatDateTime(
+                        session.updated_at ?? session.created_at,
+                      )}
+                    >
+                      {formatRelative(session.updated_at ?? session.created_at)}
+                    </span>
+                    {session.subagent_count > 0 && (
+                      <span
+                        className="ml-auto flex shrink-0 items-center gap-1 text-agent"
+                        title={`${session.subagent_count} agent runs`}
+                      >
+                        <GitBranch size={11} />
+                        {session.subagent_count}
+                      </span>
+                    )}
+                  </div>
+                  {(session.project?.name ||
+                    session.is_archived ||
+                    session.is_subagent ||
+                    session.is_approval_review) && (
+                    <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground/80">
+                      {session.is_archived && <span>Archived</span>}
+                      {session.is_subagent && (
+                        <span className="text-agent">Agent run</span>
+                      )}
+                      {session.is_approval_review && (
+                        <span className="inline-flex items-center gap-1">
+                          <ShieldCheck size={11} />
+                          Approval review
+                        </span>
+                      )}
+                      {session.project?.name && (
+                        <span className="truncate" title={session.cwd}>
+                          {session.project.name}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
+        </SidebarMenu>
+      </SidebarContent>
+      <SidebarFooter className="px-3 py-2.5">
+        <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={includeSubagents}
+            onChange={(event) => onIncludeSubagentsChange(event.target.checked)}
+            className="accent-[hsl(var(--primary))]"
+          />
+          Include agent runs
+        </label>
+      </SidebarFooter>
     </div>
   );
 }
 
 function Empty({ children }: { children: ReactNode }) {
-  return <div className="p-6 text-[13px] text-muted-foreground">{children}</div>;
+  return (
+    <div className="p-4 text-[13px] text-muted-foreground">{children}</div>
+  );
 }

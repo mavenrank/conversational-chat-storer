@@ -41,6 +41,11 @@
     --ring: 240 6% 10%;
 
     --radius: 0.5rem;
+    --sidebar: 240 6% 97%;
+    --sidebar-foreground: 240 10% 4%;
+    --sidebar-accent: 240 6% 93%;
+    --sidebar-border: 240 6% 88%;
+    --sidebar-ring: 240 6% 10%;
 
     /* Source + tool hues (light) */
     --c-opencode: 142 60% 30%;
@@ -93,6 +98,11 @@
     --border: 240 6% 16%;
     --input: 240 6% 18%;
     --ring: 240 5% 70%;
+    --sidebar: 240 8% 5.5%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-accent: 240 6% 12%;
+    --sidebar-border: 240 6% 16%;
+    --sidebar-ring: 240 5% 70%;
 
     /* Source + tool hues (dark) — brighter, still not neon */
     --c-opencode: 142 62% 58%;
@@ -139,6 +149,11 @@
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
 
   --color-opencode: hsl(var(--c-opencode));
   --color-gemini: hsl(var(--c-gemini));
@@ -165,10 +180,10 @@
 
   /* Geist is self-hosted; the rest are system fallbacks for the first paint
      and for the case where the font files fail to load. */
-  --font-sans: "Geist Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    Roboto, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
-    Consolas, monospace;
+  --font-sans:
+    "Geist Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
+  --font-mono: var(--font-sans);
 }
 
 @layer base {
@@ -180,13 +195,15 @@
   body,
   #root {
     height: 100%;
+    min-width: 0;
+    overflow: hidden;
   }
 
   body {
     background: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: var(--font-sans);
-    font-size: 15px;
+    font-size: 14px;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -204,9 +221,31 @@
     text-transform: uppercase;
   }
 
-  .mono {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
+  pre,
+  code,
+  kbd,
+  samp {
+    font-family: var(--font-sans);
+  }
+
+  .transcript {
+    container-type: inline-size;
+    container-name: transcript;
+  }
+  .prose-body {
+    font-size: 13px;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+  .prose-body pre {
+    overflow-wrap: normal;
+  }
+  details[open] .details-chevron {
+    transform: rotate(90deg);
+  }
+
+  .resize-handle[data-separator="active"] {
+    background: hsl(var(--ring) / 0.6);
   }
 
   ::selection {
@@ -233,6 +272,93 @@
   }
   *::-webkit-scrollbar-track {
     background: transparent;
+  }
+}
+
+.markdown-table-scroll {
+  --table-border: color-mix(
+    in srgb,
+    hsl(var(--border)) 75%,
+    hsl(var(--muted-foreground)) 25%
+  );
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--table-border);
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+}
+.markdown-table-scroll:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+.markdown-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: inherit;
+  line-height: 1.6;
+}
+.markdown-table th,
+.markdown-table td {
+  min-width: 10rem;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.markdown-table th {
+  background: hsl(var(--muted) / 0.5);
+  font-weight: 600;
+}
+.markdown-table td {
+  color: hsl(var(--foreground) / 0.85);
+}
+.markdown-table tr > :not(:last-child) {
+  border-right: 1px solid var(--table-border);
+}
+.markdown-table tbody tr > * {
+  border-top: 1px solid var(--table-border);
+}
+
+@container transcript (min-width: 650px) {
+  .transcript-header {
+    padding: 16px 24px;
+  }
+  .transcript-header h1 {
+    font-size: 18px;
+  }
+  .prose-body {
+    font-size: 14px;
+  }
+  .message-user {
+    margin: 20px 24px;
+    padding: 16px 20px;
+  }
+  .message-agent {
+    margin-left: 24px;
+    margin-right: 24px;
+    padding-left: 20px;
+  }
+}
+@container transcript (max-width: 440px) {
+  .transcript-header {
+    padding: 12px;
+  }
+  .transcript-header h1 {
+    font-size: 15px;
+  }
+  .message-user {
+    margin: 12px 10px;
+    padding: 12px;
+  }
+  .message-agent {
+    margin-left: 10px;
+    margin-right: 10px;
+    padding-left: 12px;
+  }
+  .message-model {
+    display: none;
   }
 }
 
@@ -270,4 +396,32 @@
 }
 .animate-slide-in-right {
   animation: slide-in-right 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+.run-spinner[data-animate="true"] {
+  animation: ccs-running 1.6s steps(8, end) infinite;
+}
+
+@keyframes ccs-running {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+:root[data-ccs-paused="true"] .run-spinner {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-spinner[data-animate="true"] {
+    animation: none;
+  }
 }

@@ -137,7 +137,9 @@ class Archive:
     def archive_all(self, registry, sources: list[str] | None = None) -> ArchiveResult:
         """Snapshot every session the registry can see, subagents included."""
         result = ArchiveResult()
-        summaries = registry.list_sessions(sources=sources, include_subagents=True)
+        summaries = registry.list_sessions(
+            sources=sources, include_subagents=True, include_approval_reviews=True
+        )
 
         for summary in summaries:
             try:
@@ -164,10 +166,10 @@ class Archive:
         for entry in self.load_index().values():
             detail = self.load(entry.id)
             if detail is not None:
-                summaries.append(SessionSummary(**detail.model_dump(exclude={"messages", "subagents"})))
-        summaries.sort(
-            key=lambda s: s.updated_at or s.created_at or datetime.min, reverse=True
-        )
+                summaries.append(
+                    SessionSummary(**detail.model_dump(exclude={"messages", "subagents"}))
+                )
+        summaries.sort(key=lambda s: s.updated_at or s.created_at or datetime.min, reverse=True)
         return summaries
 
     def load(self, session_id: str) -> SessionDetail | None:

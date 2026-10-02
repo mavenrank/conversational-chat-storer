@@ -1,14 +1,9 @@
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Tab } from "@/hooks/useTabs";
-
-const SOURCE_DOT: Record<string, string> = {
-  opencode: "bg-opencode",
-  gemini: "bg-gemini",
-  kilocode: "bg-kilocode",
-  codex: "bg-codex",
-  claude: "bg-claude",
-};
+import { SOURCE_STYLE } from "@/lib/sources";
+import { SourceIcon } from "./SourceIcon";
+import type { SourceId } from "@/lib/types";
 
 export function TabBar({
   tabs,
@@ -26,7 +21,11 @@ export function TabBar({
   if (tabs.length === 0) return null;
 
   return (
-    <div className="flex h-11 shrink-0 items-stretch gap-1 overflow-x-auto border-b border-border bg-muted/40 px-2 pt-1.5">
+    <div
+      role="tablist"
+      aria-label="Open chats"
+      className="flex h-9 shrink-0 items-stretch gap-1 overflow-x-auto border-b border-border bg-muted/30 px-2 pt-1"
+    >
       {tabs.map((tab) => {
         const active = tab.id === activeId;
         return (
@@ -37,6 +36,12 @@ export function TabBar({
             tabIndex={0}
             onClick={() => onActivate(tab.id)}
             onDoubleClick={() => onPin(tab.id)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onActivate(tab.id);
+              }
+            }}
             onAuxClick={(event) => {
               // Middle-click closes, as in a browser.
               if (event.button === 1) {
@@ -45,18 +50,19 @@ export function TabBar({
               }
             }}
             className={cn(
-              "group/tab relative flex min-w-[10rem] max-w-[18rem] cursor-pointer items-center gap-2.5",
-              "rounded-t-lg px-4 text-sm transition-colors ease-swift",
+              "group/tab relative flex min-w-[8rem] max-w-[16rem] shrink-0 cursor-pointer items-center gap-2",
+              "rounded-t-md px-3 text-xs transition-colors ease-swift focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
               "animate-slide-up-fade",
               active
                 ? "bg-background font-semibold text-foreground"
                 : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
             )}
           >
-            <span
+            <SourceIcon
+              source={tab.source as SourceId}
               className={cn(
-                "h-1.5 w-1.5 shrink-0 rounded-full",
-                SOURCE_DOT[tab.source] ?? "bg-muted-foreground",
+                "h-3.5 w-3.5",
+                SOURCE_STYLE[tab.source as SourceId]?.text,
               )}
             />
             <span
@@ -76,9 +82,8 @@ export function TabBar({
                 onClose(tab.id);
               }}
               className={cn(
-                "shrink-0 rounded-sm px-1 text-muted-foreground opacity-0 transition-opacity",
+                "shrink-0 rounded-sm px-1 text-muted-foreground opacity-60 transition-opacity",
                 "hover:bg-accent hover:text-foreground group-hover/tab:opacity-100",
-                active && "opacity-60",
               )}
             >
               <X size={13} />

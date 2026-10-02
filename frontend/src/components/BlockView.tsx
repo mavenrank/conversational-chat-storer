@@ -28,10 +28,15 @@ interface BlockViewProps {
   onOpenSubagent?: (id: string, title: string) => void;
 }
 
-export function BlockView({ block, sessionId, blockRef, onOpenSubagent }: BlockViewProps) {
+export function BlockView({
+  block,
+  sessionId,
+  blockRef,
+  onOpenSubagent,
+}: BlockViewProps) {
   if (block.kind === "text") {
     return (
-      <div className="group/text relative py-1.5 pl-4 pr-8">
+      <div className="group/text relative min-w-0 py-1 pr-5">
         <div className="prose-body">
           <Markdown text={block.text} />
         </div>
@@ -44,7 +49,9 @@ export function BlockView({ block, sessionId, blockRef, onOpenSubagent }: BlockV
   }
 
   if (block.kind === "thinking") {
-    return <ThinkingView block={block} sessionId={sessionId} blockRef={blockRef} />;
+    return (
+      <ThinkingView block={block} sessionId={sessionId} blockRef={blockRef} />
+    );
   }
 
   return (
@@ -84,16 +91,26 @@ function ThinkingView({
   sessionId: string;
   blockRef: string;
 }) {
-  const { loaded, loading, load } = useLazyBlock(sessionId, blockRef, block.elided);
+  const { loaded, loading, load } = useLazyBlock(
+    sessionId,
+    blockRef,
+    block.elided,
+  );
   const resolved = loaded?.kind === "thinking" ? loaded : null;
   const text = resolved?.text || block.text;
 
   return (
     <Accordion
       tone="think"
-      icon={<Glyph className="text-muted-foreground"><Brain size={13} /></Glyph>}
+      icon={
+        <Glyph className="text-muted-foreground">
+          <Brain size={13} />
+        </Glyph>
+      }
       label={
-        <span className="italic text-muted-foreground">{block.subject || "thinking"}</span>
+        <span className="italic text-muted-foreground">
+          {block.subject || "thinking"}
+        </span>
       }
       sizeBytes={block.size_bytes}
       onFirstOpen={load}
@@ -115,7 +132,9 @@ function ThinkingView({
             {text}
           </div>
         ) : (
-          <div className="text-xs text-muted-foreground">No reasoning text recorded.</div>
+          <div className="text-xs text-muted-foreground">
+            No reasoning text recorded.
+          </div>
         )}
       </div>
     </Accordion>
@@ -158,7 +177,9 @@ function ToolView({
           />
         </>
       }
-      sizeBytes={"size_bytes" in block.detail ? block.detail.size_bytes : undefined}
+      sizeBytes={
+        "size_bytes" in block.detail ? block.detail.size_bytes : undefined
+      }
       onFirstOpen={load}
     >
       {loading ? (
@@ -178,8 +199,18 @@ function ToolView({
 }
 
 /** Wraps a lucide icon so every row's leading glyph aligns identically. */
-function Glyph({ children, className }: { children: ReactNode; className?: string }) {
-  return <span className={cn("flex shrink-0 items-center", className)}>{children}</span>;
+function Glyph({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span className={cn("flex shrink-0 items-center", className)}>
+      {children}
+    </span>
+  );
 }
 
 function Path({ value, color }: { value: string; color: string }) {
@@ -208,7 +239,11 @@ function describe(
     case "file_read":
       return {
         tone: "read",
-        icon: <Glyph className="text-read"><FileText size={13} /></Glyph>,
+        icon: (
+          <Glyph className="text-read">
+            <FileText size={13} />
+          </Glyph>
+        ),
         label: (
           <>
             <Verb className="text-read">read</Verb>
@@ -219,7 +254,11 @@ function describe(
     case "file_write":
       return {
         tone: "write",
-        icon: <Glyph className="text-write"><FilePlus size={13} /></Glyph>,
+        icon: (
+          <Glyph className="text-write">
+            <FilePlus size={13} />
+          </Glyph>
+        ),
         label: (
           <>
             <Verb className="text-write">write</Verb>
@@ -230,7 +269,11 @@ function describe(
     case "file_edit":
       return {
         tone: "edit",
-        icon: <Glyph className="text-edit"><FileDiff size={13} /></Glyph>,
+        icon: (
+          <Glyph className="text-edit">
+            <FileDiff size={13} />
+          </Glyph>
+        ),
         label: (
           <>
             <Verb className="text-edit">edit</Verb>
@@ -248,7 +291,11 @@ function describe(
     case "command":
       return {
         tone: "command",
-        icon: <Glyph className="text-command"><Terminal size={13} /></Glyph>,
+        icon: (
+          <Glyph className="text-command">
+            <Terminal size={13} />
+          </Glyph>
+        ),
         label: (
           <span className="text-[13px] text-foreground/80">
             {truncate(detail.command.replace(/\s+/g, " "), 120)}
@@ -258,7 +305,11 @@ function describe(
     case "search":
       return {
         tone: "search",
-        icon: <Glyph className="text-search"><Search size={13} /></Glyph>,
+        icon: (
+          <Glyph className="text-search">
+            <Search size={13} />
+          </Glyph>
+        ),
         label: (
           <>
             <Verb className="text-search">{name}</Verb>
@@ -271,26 +322,50 @@ function describe(
     case "subagent":
       return {
         tone: "agent",
-        icon: <Glyph className="text-agent"><GitBranch size={13} /></Glyph>,
+        icon: (
+          <Glyph className="text-agent">
+            <GitBranch size={13} />
+          </Glyph>
+        ),
         label: (
           <>
             <span className="mr-2 rounded-sm bg-agent/15 px-1.5 py-[1px] text-xs text-agent">
               {detail.agent_type || "subagent"}
             </span>
-            <span className="text-[13px] text-foreground/80">{detail.description}</span>
+            <span className="text-[13px] text-foreground/80">
+              {detail.description}
+            </span>
           </>
         ),
       };
     default:
       return {
-        tone: "plain",
-        icon: <Glyph className="text-muted-foreground"><Wrench size={13} /></Glyph>,
-        label: <span className="text-[13px] text-muted-foreground">{name}</span>,
+        tone: name.startsWith("Web · ") ? "search" : "plain",
+        icon: (
+          <Glyph className="text-muted-foreground">
+            {name.startsWith("Web · ") ? (
+              <Search size={13} className="text-search" />
+            ) : (
+              <Wrench size={13} />
+            )}
+          </Glyph>
+        ),
+        label: (
+          <span className="text-[13px] text-muted-foreground" title={name}>
+            {name.replace(/^mcp__/, "").replaceAll("__", " · ")}
+          </span>
+        ),
       };
   }
 }
 
-function Verb({ children, className }: { children: ReactNode; className: string }) {
+function Verb({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className: string;
+}) {
   return <span className={cn("mr-2 text-[13px]", className)}>{children}</span>;
 }
 
@@ -384,7 +459,9 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function Code({ text }: { text: string }) {
   if (!text) {
-    return <div className="px-4 py-2.5 text-xs text-muted-foreground">no output</div>;
+    return (
+      <div className="px-4 py-2.5 text-xs text-muted-foreground">no output</div>
+    );
   }
   return (
     <div className="group/code relative">

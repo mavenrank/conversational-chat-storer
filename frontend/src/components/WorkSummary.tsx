@@ -37,6 +37,7 @@ export function classify(block: Block): WorkKind | null {
   if (block.kind !== "tool_use") return null;
 
   const name = block.name.toLowerCase();
+  if (name.startsWith("web · ")) return "search";
   if (SEARCH_TOOLS.has(name)) return "search";
   // Catch `mcp__tinysearch__query` and similar namespaced names.
   if (/(^|_)(tinysearch|websearch|webfetch)(_|$)/.test(name)) return "search";
@@ -86,7 +87,7 @@ export function WorkSummary({
             Work
           </span>
 
-          <span className="mono flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-3 text-xs tabular-nums text-muted-foreground">
             {counts.thinking > 0 && (
               <Count
                 icon={<Brain size={13} className="text-assistant" />}

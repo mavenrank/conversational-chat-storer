@@ -35,8 +35,9 @@ verified against real data.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from ccsweb.models import (
     Block,
@@ -128,9 +129,7 @@ class ClaudeAdapter(SourceAdapter):
             primary_path, primary = members[0]
             primary_id = Path(primary_path).stem
 
-            sessions.append(
-                self._summary(Path(primary_path), primary, fork_count=len(members) - 1)
-            )
+            sessions.append(self._summary(Path(primary_path), primary, fork_count=len(members) - 1))
             for fork_path, fork_scan in members[1:]:
                 summary = self._summary(Path(fork_path), fork_scan)
                 summary.is_fork = True
@@ -139,9 +138,7 @@ class ClaudeAdapter(SourceAdapter):
 
         return sessions
 
-    def _summary(
-        self, path: Path, scan: "_Scan", fork_count: int = 0
-    ) -> SessionSummary:
+    def _summary(self, path: Path, scan: _Scan, fork_count: int = 0) -> SessionSummary:
         return SessionSummary(
             id=path.stem,
             source=self.source_id,
@@ -169,11 +166,7 @@ class ClaudeAdapter(SourceAdapter):
         messages = list(_build_messages(records, results))
 
         scan = _scan(path, records)
-        forks = [
-            s
-            for s in self.list_sessions()
-            if s.is_fork and s.fork_of == session_id
-        ]
+        forks = [s for s in self.list_sessions() if s.is_fork and s.fork_of == session_id]
         # Same requestId dedupe as the scan — see _scan.
         usage = Usage()
         counted: set[str] = set()
@@ -213,8 +206,15 @@ class ClaudeAdapter(SourceAdapter):
 
 class _Scan:
     __slots__ = (
-        "title", "cwd", "turns", "user_turns", "models", "usage",
-        "first_at", "last_at", "root_uuid",
+        "title",
+        "cwd",
+        "turns",
+        "user_turns",
+        "models",
+        "usage",
+        "first_at",
+        "last_at",
+        "root_uuid",
     )
 
     def __init__(self) -> None:
@@ -309,9 +309,7 @@ def _is_human_prompt(record: dict[str, Any]) -> bool:
     if isinstance(content, str):
         return bool(content.strip())
     if isinstance(content, list):
-        return not any(
-            isinstance(b, dict) and b.get("type") == "tool_result" for b in content
-        )
+        return not any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content)
     return False
 
 
@@ -344,15 +342,11 @@ def _collect_tool_results(records: list[dict[str, Any]]) -> dict[str, Any]:
                     tool_id = block.get("tool_use_id")
                     if tool_id:
                         # Prefer the structured payload when present.
-                        results[tool_id] = record.get("toolUseResult") or block.get(
-                            "content"
-                        )
+                        results[tool_id] = record.get("toolUseResult") or block.get("content")
     return results
 
 
-def _build_messages(
-    records: list[dict[str, Any]], results: dict[str, Any]
-) -> Iterable[Message]:
+def _build_messages(records: list[dict[str, Any]], results: dict[str, Any]) -> Iterable[Message]:
     for index, record in enumerate(records):
         kind = record.get("type")
         if kind not in _TURN_TYPES:
@@ -471,9 +465,7 @@ def _build_detail(name: str, args: dict, output: str, raw: Any):
 
     if name in _SEARCH_TOOLS:
         return SearchDetail(
-            query=str(
-                args.get("pattern") or args.get("query") or args.get("url") or ""
-            ),
+            query=str(args.get("pattern") or args.get("query") or args.get("url") or ""),
             output=output,
         )
 
@@ -520,8 +512,15 @@ def _parse_usage(usage: Any) -> Usage | None:
     return Usage(
         input_tokens=int(usage.get("input_tokens") or 0),
         output_tokens=int(usage.get("output_tokens") or 0),
-        cached_tokens=int(usage.get("cache_read_input_tokens") or 0)
-        + int(usage.get("cache_creation_input_tokens") or 0),
+        cached_tokens=int(usage.get("cache_read_input_tokens") or 0),
+        cache_write_tokens=max(
+            0,
+            int(usage.get("cache_creation_input_tokens") or 0)
+            - int((usage.get("cache_creation") or {}).get("ephemeral_1h_input_tokens") or 0),
+        ),
+        cache_write_1h_tokens=int(
+            (usage.get("cache_creation") or {}).get("ephemeral_1h_input_tokens") or 0
+        ),
     )
 
 

@@ -9,12 +9,12 @@ messages and is only built when a session is opened.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, computed_field
 
 from ccsweb.models.blocks import Block
+from ccsweb.util.time import UTCDateTime
 
 SourceId = Literal["claude", "gemini", "opencode", "kilocode", "codex"]
 
@@ -34,6 +34,8 @@ class Usage(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     cached_tokens: int = 0
+    cache_write_tokens: int = 0
+    cache_write_1h_tokens: int = 0
     thinking_tokens: int = 0
     tool_tokens: int = 0
     cost_usd: float | None = None
@@ -52,6 +54,8 @@ class Usage(BaseModel):
             self.input_tokens
             + self.output_tokens
             + self.cached_tokens
+            + self.cache_write_tokens
+            + self.cache_write_1h_tokens
             + self.thinking_tokens
             + self.tool_tokens
         )
@@ -73,9 +77,14 @@ class Usage(BaseModel):
         sum, so it is reported separately and never folded into a headline
         "tokens used" figure.
         """
-        return self.input_tokens + self.cached_tokens
+        return (
+            self.input_tokens
+            + self.cached_tokens
+            + self.cache_write_tokens
+            + self.cache_write_1h_tokens
+        )
 
-    def __add__(self, other: "Usage") -> "Usage":
+    def __add__(self, other: Usage) -> Usage:
         cost: float | None
         if self.cost_usd is None and other.cost_usd is None:
             cost = None
@@ -85,6 +94,8 @@ class Usage(BaseModel):
             input_tokens=self.input_tokens + other.input_tokens,
             output_tokens=self.output_tokens + other.output_tokens,
             cached_tokens=self.cached_tokens + other.cached_tokens,
+            cache_write_tokens=self.cache_write_tokens + other.cache_write_tokens,
+            cache_write_1h_tokens=self.cache_write_1h_tokens + other.cache_write_1h_tokens,
             thinking_tokens=self.thinking_tokens + other.thinking_tokens,
             tool_tokens=self.tool_tokens + other.tool_tokens,
             cost_usd=cost,
@@ -98,8 +109,8 @@ class Message(BaseModel):
     role: Role
     blocks: list[Block] = Field(default_factory=list)
 
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
+    started_at: UTCDateTime | None = None
+    completed_at: UTCDateTime | None = None
 
     model: str | None = None
     provider: str | None = None
@@ -139,6 +150,20 @@ class ProjectRef(BaseModel):
     path: str = ""
 
 
+class CostEstimate(BaseModel):
+    """Current standard API equivalent, kept separate from source-recorded cost."""
+
+    estimated_usd: float | None = None
+    priced_requests: int = 0
+    unpriced_requests: int = 0
+    unpriced_models: list[str] = Field(default_factory=list)
+    missing_usage_tokens: int = 0
+    calculated_at: str | None = None
+    is_stale: bool = False
+    complete: bool = False
+    rates_verified_at: str = ""
+
+
 class SessionSummary(BaseModel):
     """List-view metadata. Must be cheap for adapters to produce."""
 
@@ -148,8 +173,17 @@ class SessionSummary(BaseModel):
     project: ProjectRef | None = None
     cwd: str = ""
 
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    created_at: UTCDateTime | None = None
+    updated_at: UTCDateTime | None = None
+
+    #: Native source archives remain readable alongside current conversations.
+    is_archived: bool = False
+    #: Fast native indexes may omit counts until a transcript is opened.
+    counts_exact: bool = True
+
+    #: Inferred from recorded lifecycle events, never from file modification alone.
+    run_status: Literal["running", "idle", "unknown"] = "unknown"
+    status_updated_at: UTCDateTime | None = None
 
     #: Every turn, user + assistant. Useful, but a poor headline: agents emit
     #: dozens of turns per human instruction.
@@ -162,12 +196,15 @@ class SessionSummary(BaseModel):
     #: OpenCode Go versus Zen, so the model id alone cannot price a session.
     providers: list[str] = Field(default_factory=list)
     usage: Usage = Field(default_factory=Usage)
+    cost_estimate: CostEstimate | None = None
 
     #: Set when this session is itself a subagent run. Such sessions are hidden
     #: from the default list and surfaced inline under their parent instead.
     is_subagent: bool = False
+    is_approval_review: bool = False
     parent_session_id: str | None = None
     subagent_count: int = 0
+    approval_review_count: int = 0
 
     #: Alternate transcripts of the same conversation. Claude Code writes a new
     #: file on every resume/fork, each containing the whole prior history, so one
@@ -188,6 +225,7 @@ class SessionDetail(SessionSummary):
 
     #: Subagent runs spawned by this session, resolved from the tool calls.
     subagents: list[SessionSummary] = Field(default_factory=list)
+    approval_reviews: list[SessionSummary] = Field(default_factory=list)
 
     #: Earlier/alternate transcripts of this same conversation.
     forks: list[SessionSummary] = Field(default_factory=list)
