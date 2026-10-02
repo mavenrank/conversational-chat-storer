@@ -6,7 +6,7 @@ import json
 import shlex
 from collections import OrderedDict
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import RLock
 from typing import Any
@@ -26,7 +26,14 @@ from ccsweb.models import (
     Usage,
 )
 from ccsweb.sources.base import SourceAdapter
-from ccsweb.sources.codex_index import read_meta, read_names, read_state, read_tail, subagent_parent
+from ccsweb.sources.codex_index import (
+    is_approval_review,
+    read_meta,
+    read_names,
+    read_state,
+    read_tail,
+    subagent_parent,
+)
 from ccsweb.sources.opencode_parts import _CAPTION_RE
 from ccsweb.sources.trim import trim_tool_output
 from ccsweb.util.jsonio import iter_jsonl
@@ -128,9 +135,21 @@ class CodexAdapter(SourceAdapter):
                 if recency
                 else (_row_time(row, "updated_at") or summary.updated_at)
             )
-            summary.is_subagent = child
+            summary.is_approval_review = is_approval_review(meta, row)
+            summary.is_subagent = child and not summary.is_approval_review
             summary.parent_session_id = parents.get(native_id) or parent
             summary.is_archived = bool(row.get("archived")) or "archived_sessions" in path.parts
+            if summary.is_archived:
+                summary.run_status = "idle"
+            elif summary.run_status == "running":
+                # Rollouts cannot prove a crashed/closed app is still running forever.
+                now = datetime.now(UTC).replace(tzinfo=None)
+                if not summary.status_updated_at or not (
+                    -timedelta(seconds=30)
+                    <= now - summary.status_updated_at
+                    <= timedelta(minutes=10)
+                ):
+                    summary.run_status = "unknown"
             # Real forks remain independent visible conversations.
             summary.fork_of = meta.get("forked_from_id")
             if row.get("model") and row["model"] not in summary.models:
@@ -139,6 +158,10 @@ class CodexAdapter(SourceAdapter):
         for summary in summaries.values():
             summary.subagent_count = sum(
                 s.is_subagent and s.parent_session_id == summary.id for s in summaries.values()
+            )
+            summary.approval_review_count = sum(
+                s.is_approval_review and s.parent_session_id == summary.id
+                for s in summaries.values()
             )
         return summaries
 
@@ -192,13 +215,22 @@ class CodexAdapter(SourceAdapter):
                 "cwd",
                 "is_archived",
                 "is_subagent",
+                "is_approval_review",
                 "parent_session_id",
                 "subagent_count",
+                "approval_review_count",
                 "fork_of",
+                "run_status",
+                "status_updated_at",
             ):
                 setattr(detail, field, getattr(summary, field))
             detail.subagents = [
                 s for s in summaries.values() if s.is_subagent and s.parent_session_id == session_id
+            ]
+            detail.approval_reviews = [
+                s
+                for s in summaries.values()
+                if s.is_approval_review and s.parent_session_id == session_id
             ]
             return detail
 
@@ -265,7 +297,50 @@ def _summary(native_id: str, path: Path, meta: dict, records: list[dict]) -> Ses
         models=sorted(models),
         providers=[str(meta.get("model_provider") or "openai")],
         usage=usage,
+        run_status=_run_status(records),
+        status_updated_at=latest,
     )
+
+
+def _run_status(records: list[dict]) -> str:
+    """Recover the latest lifecycle state even when the turn start fell outside the tail."""
+    status = "unknown"
+    for record in records:
+        kind, payload = record.get("type"), record.get("payload") or {}
+        subtype = payload.get("type")
+        if kind == "event_msg":
+            if subtype in {"task_complete", "turn_complete", "turn_completed", "turn_aborted"}:
+                status = "idle"
+            elif subtype in {"task_started", "turn_started", "agent_reasoning"}:
+                status = "running"
+            elif subtype in {"item_started", "item_completed"}:
+                item = payload.get("item") or {}
+                if item.get("type") == "AgentMessage" and item.get("phase") == "final_answer":
+                    status = "idle" if subtype == "item_completed" else "running"
+                elif item.get("type") == "AgentMessage" and item.get("phase") == "commentary":
+                    status = "running"
+                elif item.get("type") in {
+                    "UserMessage",
+                    "Reasoning",
+                    "CommandExecution",
+                    "McpToolCall",
+                    "FileChange",
+                    "Extension",
+                }:
+                    status = "running"
+        elif kind == "response_item":
+            if subtype in {"reasoning", "function_call", "custom_tool_call"}:
+                status = "running"
+            elif subtype in _TOOL_OUTPUT_TYPES and status != "idle":
+                # A large output can push its call/start outside the bounded tail.
+                # Late results must not undo an explicit completion or abort.
+                status = "running"
+            elif subtype == "message":
+                if payload.get("role") == "user" and _wire_context(payload) == "user":
+                    status = "running"
+                elif payload.get("role") == "assistant" and payload.get("phase") == "final_answer":
+                    status = "idle"
+    return status
 
 
 def _activity_time(record: dict) -> datetime | None:
@@ -275,15 +350,18 @@ def _activity_time(record: dict) -> datetime | None:
     if kind == "token_usage_record":
         return parse_iso(record.get("timestamp"))
     if kind == "event_msg":
-        if subtype == "item_completed":
-            return parse_epoch_ms(payload.get("completed_at_ms")) or parse_iso(
-                record.get("timestamp")
-            )
+        if subtype in {"item_started", "item_completed"}:
+            key = "started_at_ms" if subtype == "item_started" else "completed_at_ms"
+            return parse_epoch_ms(payload.get(key)) or parse_iso(record.get("timestamp"))
         if subtype not in {
             "user_message",
             "agent_message",
             "agent_reasoning",
             "task_complete",
+            "task_started",
+            "turn_started",
+            "turn_complete",
+            "turn_completed",
             "turn_aborted",
             "token_count",
         }:
@@ -620,6 +698,7 @@ def _tool_block(payload: dict, outputs: dict[str, str]) -> ToolUseBlock:
 def _item_tool(item: dict) -> ToolUseBlock:
     kind = item.get("type") or "Tool"
     status = _status(item.get("status"))
+    name = str(item.get("tool") or kind)
     if kind == "CommandExecution":
         command = item.get("command") or ""
         if isinstance(command, list):
@@ -648,6 +727,8 @@ def _item_tool(item: dict) -> ToolUseBlock:
             ),
         )
     elif kind == "McpToolCall":
+        if item.get("server"):
+            name = f"{item['server']}.{name}"
         result = item.get("result") or {}
         detail = GenericDetail(
             input=item.get("arguments") or {},
@@ -655,6 +736,28 @@ def _item_tool(item: dict) -> ToolUseBlock:
         )
         if result.get("isError"):
             status = "error"
+    elif kind == "Extension":
+        extension = str(item.get("kind") or "Extension")
+        action = item.get("action") or {}
+        action = action if isinstance(action, dict) else {}
+        operation = str(action.get("type") or "")
+        actions = {
+            "search": "Search",
+            "openPage": "Open page",
+            "findInPage": "Find in page",
+            "screenshot": "Screenshot",
+        }
+        name = (
+            f"Web · {actions.get(operation, operation or 'Search')}"
+            if extension == "web.search"
+            else f"{extension}{' · ' + operation if operation else ''}"
+        )
+        detail = GenericDetail(
+            input={k: v for k, v in item.items() if k not in {"type", "id", "results"}},
+            output=trim_tool_output(json.dumps(item["results"], ensure_ascii=False))
+            if item.get("results")
+            else "",
+        )
     else:
         detail = GenericDetail(input={k: v for k, v in item.items() if k not in {"type", "id"}})
     duration = item.get("duration") or {}
@@ -665,7 +768,7 @@ def _item_tool(item: dict) -> ToolUseBlock:
     )
     return ToolUseBlock(
         tool_id=item.get("id"),
-        name=str(item.get("tool") or kind),
+        name=name,
         status=status,
         duration_ms=duration_ms,
         detail=detail,

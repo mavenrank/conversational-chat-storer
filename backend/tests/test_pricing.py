@@ -97,6 +97,7 @@ def test_cost_service_preserves_recorded_zero_and_invalidates_changed_files(tmp_
 
     class RegistryStub:
         def list_sessions(self, **kwargs):
+            assert kwargs["include_approval_reviews"] is True
             return [summary, recorded]
 
         def get_session(self, id):

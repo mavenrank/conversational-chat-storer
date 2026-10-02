@@ -1,5 +1,11 @@
 import { useState, type ReactNode } from "react";
-import { ArrowUp, ChevronRight, Download, GitBranch } from "lucide-react";
+import {
+  ArrowUp,
+  ChevronRight,
+  Download,
+  GitBranch,
+  ShieldCheck,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { SessionSummary } from "@/lib/types";
@@ -8,6 +14,7 @@ import { formatCost, formatDateTime, formatTokens } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { SourceIcon } from "./SourceIcon";
+import { RunStatus } from "./RunStatus";
 import { CopyButton } from "./CopyButton";
 import { MessageView } from "./MessageView";
 
@@ -15,10 +22,16 @@ export function TranscriptView({
   sessionId,
   onOpenSubagent,
   compact = false,
+  showApprovalReviews = false,
 }: {
   sessionId: string | null;
-  onOpenSubagent?: (id: string, title: string) => void;
+  onOpenSubagent?: (
+    id: string,
+    title: string,
+    isApprovalReview?: boolean,
+  ) => void;
   compact?: boolean;
+  showApprovalReviews?: boolean;
 }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["session", sessionId],
@@ -87,6 +100,7 @@ export function TranscriptView({
             <SourceIcon source={data.source} className="h-3.5 w-3.5" />
             {source.label}
           </span>
+          <RunStatus session={data} />
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="cursor-default whitespace-nowrap tabular-nums">
@@ -197,6 +211,15 @@ export function TranscriptView({
         {data.subagents.length > 0 && onOpenSubagent && (
           <SubagentList subagents={data.subagents} onOpen={onOpenSubagent} />
         )}
+        {showApprovalReviews &&
+          (data.approval_reviews?.length ?? 0) > 0 &&
+          onOpenSubagent && (
+            <SubagentList
+              subagents={data.approval_reviews}
+              onOpen={onOpenSubagent}
+              approvalReviews
+            />
+          )}
       </header>
       <div className="transcript-messages min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         {data.messages.map((message, index) => (
@@ -222,9 +245,11 @@ export function TranscriptView({
 function SubagentList({
   subagents,
   onOpen,
+  approvalReviews = false,
 }: {
   subagents: SessionSummary[];
-  onOpen: (id: string, title: string) => void;
+  onOpen: (id: string, title: string, isApprovalReview?: boolean) => void;
+  approvalReviews?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -239,8 +264,12 @@ function SubagentList({
           size={12}
           className={cn("transition-transform", open && "rotate-90")}
         />
-        <GitBranch size={12} className="text-agent" />
-        {subagents.length} agent runs
+        {approvalReviews ? (
+          <ShieldCheck size={12} />
+        ) : (
+          <GitBranch size={12} className="text-agent" />
+        )}
+        {subagents.length} {approvalReviews ? "approval reviews" : "agent runs"}
       </button>
       {open && (
         <div className="mt-1 grid max-h-28 gap-1 overflow-y-auto rounded-md border border-border bg-muted/20 p-1.5">
@@ -248,10 +277,14 @@ function SubagentList({
             <button
               key={s.id}
               type="button"
-              onClick={() => onOpen(s.id, s.title)}
+              onClick={() => onOpen(s.id, s.title, approvalReviews)}
               className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <GitBranch size={12} className="shrink-0 text-agent" />
+              {approvalReviews ? (
+                <ShieldCheck size={12} className="shrink-0" />
+              ) : (
+                <GitBranch size={12} className="shrink-0 text-agent" />
+              )}
               <span className="truncate">{s.title}</span>
             </button>
           ))}

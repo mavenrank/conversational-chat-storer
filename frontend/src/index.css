@@ -275,6 +275,52 @@
   }
 }
 
+.markdown-table-scroll {
+  --table-border: color-mix(
+    in srgb,
+    hsl(var(--border)) 75%,
+    hsl(var(--muted-foreground)) 25%
+  );
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--table-border);
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+}
+.markdown-table-scroll:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+.markdown-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: inherit;
+  line-height: 1.6;
+}
+.markdown-table th,
+.markdown-table td {
+  min-width: 10rem;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.markdown-table th {
+  background: hsl(var(--muted) / 0.5);
+  font-weight: 600;
+}
+.markdown-table td {
+  color: hsl(var(--foreground) / 0.85);
+}
+.markdown-table tr > :not(:last-child) {
+  border-right: 1px solid var(--table-border);
+}
+.markdown-table tbody tr > * {
+  border-top: 1px solid var(--table-border);
+}
+
 @container transcript (min-width: 650px) {
   .transcript-header {
     padding: 16px 24px;
@@ -358,5 +404,24 @@
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+}
+.run-spinner[data-animate="true"] {
+  animation: ccs-running 1.6s steps(8, end) infinite;
+}
+
+@keyframes ccs-running {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+:root[data-ccs-paused="true"] .run-spinner {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-spinner[data-animate="true"] {
+    animation: none;
   }
 }

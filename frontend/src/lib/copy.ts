@@ -15,9 +15,59 @@
  *             The whole turn.
  */
 
-import type { Block, Message, ToolDetail } from "./types";
+import type { Block, ToolDetail } from "./types";
 
 export type CopyScope = "answer" | "tools" | "full";
+
+/** Only offer scopes that add content beyond the preceding option. */
+export function copyOptions(blocks: Block[], isUser = false) {
+  const options: { scope: CopyScope; label: string }[] = [];
+  const prose = blocks.some((block) => block.kind === "text");
+  const tools = blocks.some((block) => block.kind === "tool_use");
+  const thinking = blocks.some((block) => block.kind === "thinking");
+  if (prose)
+    options.push({
+      scope: "answer",
+      label: isUser ? "Copy message" : "Copy reply",
+    });
+  if (tools)
+    options.push({
+      scope: "tools",
+      label: prose ? "Copy reply with tools" : "Copy tools",
+    });
+  if (thinking)
+    options.push({
+      scope: "full",
+      label: prose || tools ? "Copy everything" : "Copy reasoning",
+    });
+  return options;
+}
+
+/** Resolve only the collapsed blocks included in the chosen scope. */
+export async function resolveCopyText(
+  blocks: Block[],
+  scope: CopyScope,
+  load: (index: number) => Promise<Block>,
+): Promise<string> {
+  const resolved = [...blocks];
+  const pending = blocks.flatMap((block, index) => {
+    const needed =
+      block.kind === "thinking"
+        ? scope === "full" && block.elided
+        : block.kind === "tool_use" &&
+          scope !== "answer" &&
+          block.detail.elided;
+    return needed ? [index] : [];
+  });
+  for (let offset = 0; offset < pending.length; offset += 4) {
+    await Promise.all(
+      pending.slice(offset, offset + 4).map(async (index) => {
+        resolved[index] = await load(index);
+      }),
+    );
+  }
+  return blocksToText(resolved, scope);
+}
 
 export function blocksToText(blocks: Block[], scope: CopyScope): string {
   const sections: string[] = [];
@@ -84,8 +134,16 @@ function toolBody(detail: ToolDetail): string {
       return detail.unified_diff || joinDiff(detail.old_text, detail.new_text);
     case "command":
     case "search":
-    case "generic":
       return detail.elided ? "(collapsed — expand to load)" : detail.output;
+    case "generic":
+      return [
+        Object.keys(detail.input).length
+          ? `Input:\n${JSON.stringify(detail.input, null, 2)}`
+          : "",
+        detail.elided ? "(collapsed — expand to load)" : detail.output,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
     case "subagent":
       return detail.result;
     default:
@@ -95,8 +153,14 @@ function toolBody(detail: ToolDetail): string {
 
 function joinDiff(oldText: string, newText: string): string {
   const lines = [
-    ...oldText.split("\n").filter(Boolean).map((l) => `-${l}`),
-    ...newText.split("\n").filter(Boolean).map((l) => `+${l}`),
+    ...oldText
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => `-${l}`),
+    ...newText
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => `+${l}`),
   ];
   return lines.join("\n");
 }
@@ -106,11 +170,4 @@ function indent(text: string): string {
     .split("\n")
     .map((line) => (line.trim() ? `  ${line}` : line))
     .join("\n");
-}
-
-/** Whether a scope would produce anything, so empty buttons can be hidden. */
-export function hasScope(message: Message, scope: CopyScope): boolean {
-  if (scope === "answer") return message.blocks.some((b) => b.kind === "text");
-  if (scope === "tools") return message.blocks.some((b) => b.kind === "tool_use");
-  return message.blocks.length > 0;
 }

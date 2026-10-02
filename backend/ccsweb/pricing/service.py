@@ -84,7 +84,9 @@ class CostService:
                 self._running = False
 
     def _calculate(self) -> None:
-        sessions = self.registry.list_sessions(include_subagents=True)
+        sessions = self.registry.list_sessions(
+            include_subagents=True, include_approval_reviews=True
+        )
         stats = {
             "recorded_usd": 0.0,
             "estimated_usd": None,

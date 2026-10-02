@@ -340,14 +340,20 @@ function describe(
       };
     default:
       return {
-        tone: "plain",
+        tone: name.startsWith("Web · ") ? "search" : "plain",
         icon: (
           <Glyph className="text-muted-foreground">
-            <Wrench size={13} />
+            {name.startsWith("Web · ") ? (
+              <Search size={13} className="text-search" />
+            ) : (
+              <Wrench size={13} />
+            )}
           </Glyph>
         ),
         label: (
-          <span className="text-[13px] text-muted-foreground">{name}</span>
+          <span className="text-[13px] text-muted-foreground" title={name}>
+            {name.replace(/^mcp__/, "").replaceAll("__", " · ")}
+          </span>
         ),
       };
   }

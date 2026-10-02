@@ -1,5 +1,4 @@
 import { ArrowUp } from "lucide-react";
-import { blocksToText, hasScope } from "@/lib/copy";
 import { WorkSummary, classify } from "./WorkSummary";
 import type { Message } from "@/lib/types";
 import {
@@ -10,7 +9,7 @@ import {
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { BlockView } from "./BlockView";
-import { CopyButton } from "./CopyButton";
+import { MessageCopyActions } from "./MessageCopyActions";
 
 /**
  * Distinguishing speakers is done with weight, not decoration:
@@ -122,32 +121,11 @@ export function MessageView({
             {cost && <span>{cost}</span>}
           </div>
 
-          {/*
-            Three scopes rather than one button. The single button used to copy
-            `message.text`, which is prose only — it dropped every tool call and
-            every reasoning block, and pasted "undefined" besides.
-          */}
-          <div className="message-actions ml-auto flex items-center gap-0.5 opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-            {hasScope(message, "answer") && (
-              <CopyButton
-                label="Answer"
-                title="Copy just the model's prose"
-                value={() => blocksToText(message.blocks, "answer")}
-              />
-            )}
-            {hasScope(message, "tools") && (
-              <CopyButton
-                label="+ tools"
-                title="Copy tool calls with their results, then the answer"
-                value={() => blocksToText(message.blocks, "tools")}
-              />
-            )}
-            <CopyButton
-              label="All"
-              title="Copy thinking, tools and answer in order"
-              value={() => blocksToText(message.blocks, "full")}
-            />
-          </div>
+          <MessageCopyActions
+            message={message}
+            messageIndex={messageIndex}
+            sessionId={sessionId}
+          />
         </header>
       )}
 

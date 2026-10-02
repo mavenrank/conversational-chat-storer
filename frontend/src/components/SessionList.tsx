@@ -1,5 +1,11 @@
 import { useMemo, type ReactNode } from "react";
-import { Check, GitBranch, Search, X } from "lucide-react";
+import {
+  ArrowDownWideNarrow,
+  GitBranch,
+  Search,
+  ShieldCheck,
+  X,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { SessionSummary } from "@/lib/types";
@@ -7,6 +13,8 @@ import { formatDateTime, formatRelative, formatTokens } from "@/lib/format";
 import { SOURCE_STYLE } from "@/lib/sources";
 import { cn } from "@/lib/utils";
 import { SourceIcon } from "./SourceIcon";
+import { RunStatus } from "./RunStatus";
+import { RunSpinner } from "./RunSpinner";
 import {
   SidebarContent,
   SidebarFooter,
@@ -30,6 +38,8 @@ export function SessionList({
   onIncludeSubagentsChange,
   onOpen,
   onPin,
+  canSortByLatest,
+  onSortByLatest,
 }: {
   sessions: SessionSummary[];
   sources: string[];
@@ -43,6 +53,8 @@ export function SessionList({
   onIncludeSubagentsChange: (value: boolean) => void;
   onOpen: (session: SessionSummary) => void;
   onPin: (session: SessionSummary) => void;
+  canSortByLatest: boolean;
+  onSortByLatest: () => void;
 }) {
   const open = useMemo(() => new Set(openIds), [openIds]);
   const { data: availableSources } = useQuery({
@@ -61,6 +73,9 @@ export function SessionList({
         )
       : sessions;
   }, [sessions, filter]);
+  const runningCount = visible.filter(
+    (session) => session.run_status === "running",
+  ).length;
 
   return (
     <div className="flex h-full min-w-0 flex-col">
@@ -84,6 +99,26 @@ export function SessionList({
                 : `${visible.length} ${visible.length === 1 ? "chat" : "chats"}`}
             </span>
           </div>
+        </div>
+        <div className="flex min-h-6 items-center justify-between gap-2 text-[11px] text-muted-foreground">
+          <span
+            className="inline-flex items-center gap-1.5"
+            aria-label={`${runningCount} running chats`}
+            title={`${runningCount} chats have recent unfinished turns`}
+          >
+            <RunSpinner size={12} active={runningCount > 0} />
+            <span aria-hidden="true">{runningCount}</span>
+          </span>
+          <button
+            type="button"
+            onClick={onSortByLatest}
+            disabled={!canSortByLatest}
+            title="Apply latest activity order. Background updates keep rows in place."
+            className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-accent hover:text-foreground disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ArrowDownWideNarrow size={12} />
+            Sort by latest
+          </button>
         </div>
         <ToggleGroup
           type="multiple"
@@ -175,32 +210,12 @@ export function SessionList({
                     )}
                   />
                   <div className="flex items-start gap-2">
-                    <span
-                      className={cn(
-                        "line-clamp-2 min-w-0 flex-1 text-[13px] leading-[1.45] text-foreground",
-                        active ? "font-semibold" : "font-medium",
-                      )}
-                    >
+                    <span className="line-clamp-2 min-w-0 flex-1 pr-3 text-[13px] font-medium leading-[1.45] text-foreground">
                       {session.title || "Untitled chat"}
                     </span>
-                    {active && (
-                      <span
-                        className={cn(
-                          "mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full",
-                          style.rail,
-                        )}
-                        title="Selected chat"
-                      >
-                        <Check
-                          size={11}
-                          strokeWidth={3}
-                          className="text-background"
-                        />
-                      </span>
-                    )}
                     {open.has(session.id) && !active && (
                       <span
-                        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground"
+                        className="absolute right-3 top-4 h-1.5 w-1.5 rounded-full bg-muted-foreground"
                         title="Open in a tab"
                       />
                     )}
@@ -216,6 +231,7 @@ export function SessionList({
                       <SourceIcon source={session.source} className="h-3 w-3" />
                       {style.label}
                     </span>
+                    <RunStatus session={session} compact />
                     <span
                       className="shrink-0 tabular-nums"
                       title={formatDateTime(
@@ -224,14 +240,6 @@ export function SessionList({
                     >
                       {formatRelative(session.updated_at ?? session.created_at)}
                     </span>
-                    {session.counts_exact && session.user_message_count > 0 && (
-                      <span
-                        className="shrink-0 tabular-nums"
-                        title={`${session.user_message_count} prompts · ${session.message_count} turns`}
-                      >
-                        {session.user_message_count} prompts
-                      </span>
-                    )}
                     {session.subagent_count > 0 && (
                       <span
                         className="ml-auto flex shrink-0 items-center gap-1 text-agent"
@@ -244,11 +252,18 @@ export function SessionList({
                   </div>
                   {(session.project?.name ||
                     session.is_archived ||
-                    session.is_subagent) && (
+                    session.is_subagent ||
+                    session.is_approval_review) && (
                     <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground/80">
                       {session.is_archived && <span>Archived</span>}
                       {session.is_subagent && (
                         <span className="text-agent">Agent run</span>
+                      )}
+                      {session.is_approval_review && (
+                        <span className="inline-flex items-center gap-1">
+                          <ShieldCheck size={11} />
+                          Approval review
+                        </span>
                       )}
                       {session.project?.name && (
                         <span className="truncate" title={session.cwd}>

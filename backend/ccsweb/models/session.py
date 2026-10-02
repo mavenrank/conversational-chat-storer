@@ -181,6 +181,10 @@ class SessionSummary(BaseModel):
     #: Fast native indexes may omit counts until a transcript is opened.
     counts_exact: bool = True
 
+    #: Inferred from recorded lifecycle events, never from file modification alone.
+    run_status: Literal["running", "idle", "unknown"] = "unknown"
+    status_updated_at: UTCDateTime | None = None
+
     #: Every turn, user + assistant. Useful, but a poor headline: agents emit
     #: dozens of turns per human instruction.
     message_count: int = 0
@@ -197,8 +201,10 @@ class SessionSummary(BaseModel):
     #: Set when this session is itself a subagent run. Such sessions are hidden
     #: from the default list and surfaced inline under their parent instead.
     is_subagent: bool = False
+    is_approval_review: bool = False
     parent_session_id: str | None = None
     subagent_count: int = 0
+    approval_review_count: int = 0
 
     #: Alternate transcripts of the same conversation. Claude Code writes a new
     #: file on every resume/fork, each containing the whole prior history, so one
@@ -219,6 +225,7 @@ class SessionDetail(SessionSummary):
 
     #: Subagent runs spawned by this session, resolved from the tool calls.
     subagents: list[SessionSummary] = Field(default_factory=list)
+    approval_reviews: list[SessionSummary] = Field(default_factory=list)
 
     #: Earlier/alternate transcripts of this same conversation.
     forks: list[SessionSummary] = Field(default_factory=list)

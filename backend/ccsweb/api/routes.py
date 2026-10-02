@@ -82,11 +82,14 @@ def list_sources() -> list[SourceOut]:
 def list_sessions(
     source: list[str] | None = Query(default=None),
     include_subagents: bool = Query(default=False),
+    include_approval_reviews: bool = Query(default=False),
     limit: int = Query(default=200, ge=1, le=2000),
     offset: int = Query(default=0, ge=0),
 ) -> list[SessionSummary]:
     sessions = _registry.list_sessions(
-        sources=source, include_subagents=include_subagents
+        sources=source,
+        include_subagents=include_subagents,
+        include_approval_reviews=include_approval_reviews,
     )
     return sessions[offset : offset + limit]
 
@@ -138,7 +141,7 @@ def stats() -> StatsOut:
     # Usage must include them: a subagent run costs real money, and omitting it
     # understated opencode by 1.36M output tokens and $1.92 on the reference
     # store (3.53M/$79.34 shown against 4.89M/$81.26 actually spent).
-    billable = _registry.list_sessions(include_subagents=True)
+    billable = _registry.list_sessions(include_subagents=True, include_approval_reviews=True)
     by_source: dict[str, int] = {}
     by_model: dict[str, int] = {}
     totals = Usage()

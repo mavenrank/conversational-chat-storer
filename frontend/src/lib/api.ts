@@ -26,11 +26,17 @@ export const api = {
   sources: () => get<SourceStatus[]>("/api/sources"),
 
   sessions: async (
-    params: { sources?: string[]; includeSubagents?: boolean } = {},
+    params: {
+      sources?: string[];
+      includeSubagents?: boolean;
+      includeApprovalReviews?: boolean;
+    } = {},
   ) => {
     const query = new URLSearchParams();
     params.sources?.forEach((s) => query.append("source", s));
     if (params.includeSubagents) query.set("include_subagents", "true");
+    if (params.includeApprovalReviews)
+      query.set("include_approval_reviews", "true");
     // The server's default page holds only 200 chats. Keep fetching rather
     // than silently dropping older history from the sidebar and its search.
     const pageSize = 1000;

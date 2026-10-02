@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,105 @@ import pytest
 from ccsweb.models import CommandDetail
 from ccsweb.sources.codex import CodexAdapter
 from ccsweb.util.time import parse_iso
+
+
+@pytest.mark.parametrize("ending", ["task_complete", "turn_completed", "turn_aborted"])
+def test_live_status_changes_on_completion_and_abort(tmp_path: Path, ending: str):
+    now = datetime.now(UTC).isoformat()
+    path = write(
+        tmp_path, "running", [meta("running"), record("event_msg", {"type": "task_started"}, now)]
+    )
+    adapter = CodexAdapter(tmp_path)
+    assert adapter.list_sessions()[0].run_status == "running"
+    assert adapter.get_session("running").run_status == "running"
+    with path.open("a", encoding="utf8") as stream:
+        stream.write(json.dumps(record("event_msg", {"type": ending}, now)) + "\n")
+    assert adapter.list_sessions()[0].run_status == "idle"
+    assert adapter.get_session("running").run_status == "idle"
+
+
+def test_tail_progress_and_final_phase_establish_status_without_a_start(tmp_path: Path):
+    from ccsweb.sources.codex import _run_status
+
+    progress = item("AgentMessage", "p", "Working", phase="commentary")
+    final = item("AgentMessage", "f", "Done", phase="final_answer")
+    assert _run_status([progress]) == "running"
+    assert _run_status([progress, final, record("token_usage_record", {"usage": {}})]) == "idle"
+    for subtype in ("function_call_output", "custom_tool_call_output"):
+        output = record("response_item", {"type": subtype, "output": "Result"})
+        assert _run_status([output]) == "running"
+        assert _run_status([final, output]) == "idle"
+    assert _run_status([record("event_msg", {"type": "thread_settings_applied"})]) == "unknown"
+    write(tmp_path, "stale", [meta("stale"), record("event_msg", {"type": "task_started"})])
+    assert CodexAdapter(tmp_path).list_sessions()[0].run_status == "unknown"
+
+
+def test_running_status_expires_even_when_rollout_cache_is_unchanged(tmp_path: Path, monkeypatch):
+    from ccsweb.sources import codex
+
+    now = datetime.now(UTC)
+    write(
+        tmp_path,
+        "cached",
+        [
+            meta("cached"),
+            record(
+                "event_msg",
+                {
+                    "type": "item_started",
+                    "started_at_ms": int(now.timestamp() * 1000),
+                    "item": {"type": "CommandExecution", "id": "command"},
+                },
+            ),
+        ],
+    )
+    adapter = CodexAdapter(tmp_path)
+    assert adapter.list_sessions()[0].run_status == "running"
+
+    class Later(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return (now + timedelta(minutes=11)).astimezone(tz)
+
+    monkeypatch.setattr(codex, "datetime", Later)
+    assert adapter.list_sessions()[0].run_status == "unknown"
+    assert adapter.get_session("cached").run_status == "unknown"
+    monkeypatch.setattr(codex, "datetime", datetime)
+    assert adapter.list_sessions()[0].run_status == "running"
+
+
+def test_extensions_and_mcp_calls_keep_specific_operation_names_and_arguments():
+    from ccsweb.sources.codex import _item_tool
+
+    tool = _item_tool(
+        {
+            "type": "Extension",
+            "id": "search",
+            "kind": "web.search",
+            "action": {"type": "findInPage", "url": "https://example.com", "pattern": "keyword"},
+            "results": [{"text": "Found"}],
+        }
+    )
+    assert tool.name == "Web · Find in page"
+    assert tool.detail.input["action"]["pattern"] == "keyword"
+    assert "Found" in tool.detail.output
+    mcp = _item_tool(
+        {
+            "type": "McpToolCall",
+            "server": "example",
+            "tool": "lookup",
+            "arguments": {"key": "value"},
+        }
+    )
+    assert mcp.name == "example.lookup" and mcp.detail.input == {"key": "value"}
+
+
+def test_approval_classification_uses_metadata_not_a_chat_title():
+    from ccsweb.sources.codex_index import is_approval_review
+
+    assert not is_approval_review({"title": "Guardian review"}, {})
+    assert not is_approval_review({"source": {"subagent": {"other": "worker"}}}, {})
+    assert is_approval_review({}, {"source": json.dumps({"subagent": {"other": "guardian"}})})
 
 
 def record(kind: str, payload: dict, timestamp: str = "2026-10-01T09:00:00Z") -> dict:
@@ -189,14 +289,26 @@ def test_ids_child_relationships_archives_and_true_forks_are_distinct(tmp_path: 
         ],
         archived=True,
     )
+    write(
+        tmp_path,
+        "agent",
+        [
+            meta("agent", source={"subagent": {"thread_spawn": {"parent_thread_id": "parent"}}}),
+            item("UserMessage", "u-agent", "Delegated task"),
+        ],
+    )
     adapter = CodexAdapter(tmp_path)
     sessions = {s.id: s for s in adapter.list_sessions()}
-    assert set(sessions) == {"parent", "child", "fork"}
-    assert sessions["child"].is_subagent and sessions["child"].parent_session_id == "parent"
+    assert set(sessions) == {"parent", "child", "fork", "agent"}
+    assert sessions["child"].is_approval_review and not sessions["child"].is_subagent
+    assert sessions["child"].parent_session_id == "parent"
+    assert sessions["agent"].is_subagent and not sessions["agent"].is_approval_review
     assert sessions["parent"].subagent_count == 1
+    assert sessions["parent"].approval_review_count == 1
     assert sessions["fork"].is_archived and sessions["fork"].fork_of == "parent"
     assert not sessions["fork"].is_fork
-    assert adapter.get_session("parent").subagents[0].id == "child"
+    assert adapter.get_session("parent").subagents[0].id == "agent"
+    assert adapter.get_session("parent").approval_reviews[0].id == "child"
     assert adapter.get_session("fork").id == "fork"
 
 

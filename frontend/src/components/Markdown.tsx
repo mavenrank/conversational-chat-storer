@@ -26,7 +26,10 @@ function parse(text: string): ReactNode[] {
       const language = line.trim().slice(3).trim();
       const body: string[] = [];
       index++;
-      while (index < lines.length && !lines[index].trimStart().startsWith("```")) {
+      while (
+        index < lines.length &&
+        !lines[index].trimStart().startsWith("```")
+      ) {
         body.push(lines[index]);
         index++;
       }
@@ -52,17 +55,30 @@ function parse(text: string): ReactNode[] {
       const header = splitRow(line);
       const rows: string[][] = [];
       index += 2;
-      while (index < lines.length && lines[index].includes("|") && lines[index].trim()) {
+      while (
+        index < lines.length &&
+        lines[index].includes("|") &&
+        lines[index].trim()
+      ) {
         rows.push(splitRow(lines[index]));
         index++;
       }
       out.push(
-        <div key={key++} className="overflow-x-auto rounded-md border border-border">
-          <table className="w-full border-collapse text-[13px]">
+        <div
+          key={key++}
+          className="markdown-table-scroll"
+          role="region"
+          aria-label="Table"
+          tabIndex={0}
+        >
+          <table
+            className="markdown-table"
+            style={{ minWidth: `${header.length * 10}rem` }}
+          >
             <thead>
-              <tr className="border-b border-border bg-muted/50">
+              <tr>
                 {header.map((cell, i) => (
-                  <th key={i} className="px-3 py-2 text-left font-semibold">
+                  <th key={i} scope="col">
                     {inline(cell)}
                   </th>
                 ))}
@@ -70,11 +86,9 @@ function parse(text: string): ReactNode[] {
             </thead>
             <tbody>
               {rows.map((row, r) => (
-                <tr key={r} className="border-b border-border/50 last:border-0">
-                  {row.map((cell, c) => (
-                    <td key={c} className="px-3 py-2 align-top text-foreground/85">
-                      {inline(cell)}
-                    </td>
+                <tr key={r}>
+                  {header.map((_, c) => (
+                    <td key={c}>{inline(row[c] ?? "")}</td>
                   ))}
                 </tr>
               ))}
@@ -131,12 +145,18 @@ function parse(text: string): ReactNode[] {
 
     if (/^\s*([-*+]|\d+\.)\s+/.test(line)) {
       const items: string[] = [];
-      while (index < lines.length && /^\s*([-*+]|\d+\.)\s+/.test(lines[index])) {
+      while (
+        index < lines.length &&
+        /^\s*([-*+]|\d+\.)\s+/.test(lines[index])
+      ) {
         items.push(lines[index].replace(/^\s*([-*+]|\d+\.)\s+/, ""));
         index++;
       }
       out.push(
-        <ul key={key++} className="ml-5 list-disc space-y-1.5 marker:text-muted-foreground">
+        <ul
+          key={key++}
+          className="ml-5 list-disc space-y-1.5 marker:text-muted-foreground"
+        >
           {items.map((item, i) => (
             <li key={i}>{inline(item)}</li>
           ))}

@@ -20,6 +20,8 @@ type NavProps = {
   onThemeToggle: () => void;
   includeSubagents: boolean;
   onIncludeSubagentsChange: (value: boolean) => void;
+  showApprovalReviews: boolean;
+  onShowApprovalReviewsChange: (value: boolean) => void;
 };
 
 export function TopNav(props: NavProps) {
@@ -127,6 +129,8 @@ function SettingsDialog({
   onThemeToggle,
   includeSubagents,
   onIncludeSubagentsChange,
+  showApprovalReviews,
+  onShowApprovalReviewsChange,
 }: NavProps) {
   const client = useQueryClient();
   const refresh = useMutation({
@@ -302,8 +306,24 @@ function SettingsDialog({
               <span>
                 Show agent runs in history
                 <span className="mt-1 block text-xs text-muted-foreground">
-                  Include delegated tasks and automatic reviews beside your
-                  chats.
+                  Include delegated tasks beside your chats.
+                </span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3 text-[13px]">
+              <input
+                type="checkbox"
+                checked={showApprovalReviews}
+                onChange={(event) =>
+                  onShowApprovalReviewsChange(event.target.checked)
+                }
+                className="mt-0.5 accent-[hsl(var(--primary))]"
+              />
+              <span>
+                Show approval reviews
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Show Codex Guardian reviews separately from delegated agents.
+                  Their costs remain included.
                 </span>
               </span>
             </label>

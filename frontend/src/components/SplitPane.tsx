@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, GitBranch, X } from "lucide-react";
+import { ArrowLeft, GitBranch, ShieldCheck, X } from "lucide-react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -12,11 +12,13 @@ export function SplitPane({
   right,
   onCloseRight,
   rightTitle,
+  rightIsApprovalReview = false,
 }: {
   left: ReactNode;
   right?: ReactNode | null;
   onCloseRight?: () => void;
   rightTitle?: ReactNode;
+  rightIsApprovalReview?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(false);
@@ -42,7 +44,10 @@ export function SplitPane({
   }, []);
 
   const review = (
-    <aside className="flex h-full min-w-0 flex-col" aria-label="Agent run">
+    <aside
+      className="flex h-full min-w-0 flex-col"
+      aria-label={rightIsApprovalReview ? "Approval review" : "Agent run"}
+    >
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-3">
         {!wide && (
           <Button size="sm" onClick={onCloseRight} className="h-7 px-1.5">
@@ -50,14 +55,20 @@ export function SplitPane({
             Back to chat
           </Button>
         )}
-        <GitBranch size={14} className="shrink-0 text-agent" />
+        {rightIsApprovalReview ? (
+          <ShieldCheck size={14} className="shrink-0" />
+        ) : (
+          <GitBranch size={14} className="shrink-0 text-agent" />
+        )}
         <span className="min-w-0 flex-1 truncate text-xs font-medium">
           {rightTitle}
         </span>
         <Button
           size="icon"
           onClick={onCloseRight}
-          aria-label="Close agent run"
+          aria-label={
+            rightIsApprovalReview ? "Close approval review" : "Close agent run"
+          }
           className="h-7 w-7"
         >
           <X size={14} />

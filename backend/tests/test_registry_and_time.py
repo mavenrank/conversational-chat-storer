@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from threading import Barrier
 from time import sleep
 
-from ccsweb.models import Message, SessionSummary
+from ccsweb.models import Message, SessionDetail, SessionSummary
 from ccsweb.registry import Registry
 from ccsweb.sources.base import SourceAdapter
 
@@ -58,3 +58,36 @@ def test_timestamp_serialization_is_utc_and_backups_round_trip_without_mixed_zon
     restored = SessionSummary.model_validate_json(summary.model_dump_json())
     assert restored.created_at == datetime(2026, 10, 1, 11, 30)
     assert restored.created_at.tzinfo is None
+
+
+def test_approval_reviews_and_agents_have_independent_visibility_and_global_links():
+    parent = SessionSummary(id="parent", source="codex")
+    agent = SessionSummary(id="agent", source="codex", is_subagent=True, parent_session_id="parent")
+    review = SessionSummary(
+        id="review", source="codex", is_approval_review=True, parent_session_id="parent"
+    )
+
+    class Adapter(CountingAdapter):
+        def list_sessions(self):
+            return [parent, agent, review]
+
+        def get_session(self, id):
+            return SessionDetail(
+                **parent.model_dump(), subagents=[agent], approval_reviews=[review]
+            )
+
+    registry = Registry(adapters={"codex": Adapter()})
+    assert [s.id for s in registry.list_sessions()] == ["codex:parent"]
+    assert {s.id for s in registry.list_sessions(include_subagents=True)} == {
+        "codex:parent",
+        "codex:agent",
+    }
+    assert {s.id for s in registry.list_sessions(include_approval_reviews=True)} == {
+        "codex:parent",
+        "codex:review",
+    }
+    assert len(registry.list_sessions(include_subagents=True, include_approval_reviews=True)) == 3
+    detail = registry.get_session("codex:parent")
+    assert detail.approval_reviews[0].id == "codex:review"
+    assert detail.approval_reviews[0].parent_session_id == "codex:parent"
+    assert registry.statuses()[0].session_count == 1

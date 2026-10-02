@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useTabs } from "@/hooks/useTabs";
+import { useStableSessionOrder } from "@/hooks/useStableSessionOrder";
 import { TopNav } from "@/components/TopNav";
 import { TabBar } from "@/components/TabBar";
 import { SessionList } from "@/components/SessionList";
@@ -33,6 +34,9 @@ function AppContent() {
   const [includeSubagents, setIncludeSubagents] = useState(
     () => localStorage.getItem("ccsweb.includeAgentRuns") === "true",
   );
+  const [showApprovalReviews, setShowApprovalReviews] = useState(
+    () => localStorage.getItem("ccsweb.showApprovalReviews") === "true",
+  );
   const [theme, setTheme] = useState<"dark" | "light">(
     () => (localStorage.getItem("ccsweb.theme") as "dark" | "light") ?? "dark",
   );
@@ -40,9 +44,23 @@ function AppContent() {
   const [subagent, setSubagent] = useState<{
     id: string;
     title: string;
+    isApprovalReview: boolean;
   } | null>(null);
 
   const tabs = useTabs();
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const update = () => {
+      root.dataset.ccsPaused = String(document.hidden);
+    };
+    update();
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      document.removeEventListener("visibilitychange", update);
+      delete root.dataset.ccsPaused;
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -51,17 +69,36 @@ function AppContent() {
   useEffect(() => {
     localStorage.setItem("ccsweb.includeAgentRuns", String(includeSubagents));
   }, [includeSubagents]);
+  useEffect(() => {
+    localStorage.setItem(
+      "ccsweb.showApprovalReviews",
+      String(showApprovalReviews),
+    );
+  }, [showApprovalReviews]);
+  useEffect(() => {
+    if (!showApprovalReviews && subagent?.isApprovalReview) setSubagent(null);
+  }, [showApprovalReviews, subagent]);
 
   const { data: sessions, isLoading } = useQuery({
-    queryKey: ["sessions", sources, includeSubagents],
+    queryKey: ["sessions", sources, includeSubagents, showApprovalReviews],
     queryFn: () =>
       api.sessions({
         sources: sources.length ? sources : undefined,
         includeSubagents,
+        includeApprovalReviews: showApprovalReviews,
       }),
     staleTime: 5000,
     refetchInterval: 10_000,
   });
+
+  const history = useStableSessionOrder(
+    sessions,
+    JSON.stringify([
+      sources.slice().sort(),
+      includeSubagents,
+      showApprovalReviews,
+    ]),
+  );
 
   // Switching or closing the parent must not leave a different chat's agent run open.
   useEffect(() => {
@@ -84,9 +121,12 @@ function AppContent() {
     return () => window.removeEventListener("keydown", onKey);
   }, [cycle, close, activeId]);
 
-  const openSubagent = useCallback((id: string, title: string) => {
-    setSubagent({ id, title });
-  }, []);
+  const openSubagent = useCallback(
+    (id: string, title: string, isApprovalReview = false) => {
+      setSubagent({ id, title, isApprovalReview });
+    },
+    [],
+  );
 
   return (
     <>
@@ -95,6 +135,8 @@ function AppContent() {
         onThemeToggle={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
         includeSubagents={includeSubagents}
         onIncludeSubagentsChange={setIncludeSubagents}
+        showApprovalReviews={showApprovalReviews}
+        onShowApprovalReviewsChange={setShowApprovalReviews}
       />
 
       <ResizablePanelGroup
@@ -109,7 +151,9 @@ function AppContent() {
             onSourcesChange={setSources}
             filter={filter}
             onFilterChange={setFilter}
-            sessions={sessions ?? []}
+            sessions={history.sessions}
+            canSortByLatest={history.canSortByLatest}
+            onSortByLatest={history.sortByLatest}
             activeId={tabs.activeId}
             openIds={tabs.tabs.map((t) => t.id)}
             loading={isLoading}
@@ -139,6 +183,7 @@ function AppContent() {
                 <TranscriptView
                   sessionId={tabs.activeId}
                   onOpenSubagent={openSubagent}
+                  showApprovalReviews={showApprovalReviews}
                 />
               }
               right={
@@ -146,11 +191,13 @@ function AppContent() {
                   <TranscriptView
                     sessionId={subagent.id}
                     onOpenSubagent={openSubagent}
+                    showApprovalReviews={showApprovalReviews}
                     compact
                   />
                 ) : null
               }
               rightTitle={subagent?.title}
+              rightIsApprovalReview={subagent?.isApprovalReview}
               onCloseRight={() => setSubagent(null)}
             />
           </SidebarInset>

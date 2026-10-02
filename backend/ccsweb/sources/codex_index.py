@@ -143,3 +143,16 @@ def subagent_parent(meta: dict[str, Any], row: dict[str, Any]) -> tuple[bool, st
     }
     parent = meta.get("parent_thread_id") or spawn.get("parent_thread_id")
     return is_child, str(parent) if parent else None
+
+
+def is_approval_review(meta: dict[str, Any], row: dict[str, Any]) -> bool:
+    if (meta.get("thread_source") or row.get("thread_source")) == "guardian_review":
+        return True
+    source = meta.get("source") or row.get("source") or {}
+    if isinstance(source, str):
+        try:
+            source = json.loads(source)
+        except ValueError:
+            return False
+    child = source.get("subagent") if isinstance(source, dict) else None
+    return isinstance(child, dict) and child.get("other") == "guardian"

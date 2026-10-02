@@ -114,6 +114,8 @@ export interface SessionSummary {
   updated_at: string | null;
   message_count: number;
   counts_exact: boolean;
+  run_status: "running" | "idle" | "unknown";
+  status_updated_at: string | null;
   is_archived: boolean;
   /** Turns the human actually typed — what the UI leads with. */
   user_message_count: number;
@@ -121,8 +123,10 @@ export interface SessionSummary {
   usage: Usage;
   cost_estimate: CostEstimate | null;
   is_subagent: boolean;
+  is_approval_review: boolean;
   parent_session_id: string | null;
   subagent_count: number;
+  approval_review_count: number;
   is_fork: boolean;
   fork_of: string | null;
   fork_count: number;
@@ -160,6 +164,7 @@ export interface CostStats {
 export interface SessionDetail extends SessionSummary {
   messages: Message[];
   subagents: SessionSummary[];
+  approval_reviews: SessionSummary[];
   forks: SessionSummary[];
 }
 

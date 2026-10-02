@@ -35,7 +35,9 @@ def search_sessions(
     if len(needle) < 2:
         return []
 
-    sessions = registry.list_sessions(sources=sources, include_subagents=True)
+    sessions = registry.list_sessions(
+        sources=sources, include_subagents=True, include_approval_reviews=True
+    )
     hits: list[SearchHit] = []
     unmatched: list[SessionSummary] = []
 

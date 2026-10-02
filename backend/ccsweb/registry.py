@@ -87,7 +87,9 @@ class Registry:
             if status.available:
                 try:
                     status.session_count = sum(
-                        1 for s in self._sessions(adapter) if not s.is_subagent and not s.is_fork
+                        1
+                        for s in self._sessions(adapter)
+                        if not s.is_subagent and not s.is_approval_review and not s.is_fork
                     )
                 except Exception as exc:  # noqa: BLE001 - surfaced in the UI
                     status.available = False
@@ -99,6 +101,7 @@ class Registry:
         self,
         sources: list[str] | None = None,
         include_subagents: bool = False,
+        include_approval_reviews: bool = False,
         include_forks: bool = False,
     ) -> list[SessionSummary]:
         """Merged, newest-first listing across sources."""
@@ -114,6 +117,8 @@ class Registry:
                 continue
             for session in sessions:
                 if session.is_subagent and not include_subagents:
+                    continue
+                if session.is_approval_review and not include_approval_reviews:
                     continue
                 # Resume/fork transcripts duplicate a conversation's whole
                 # history; only the longest is listed.
@@ -150,7 +155,7 @@ class Registry:
             session.parent_session_id = make_global_id(source_id, session.parent_session_id)
         if session.fork_of:
             session.fork_of = make_global_id(source_id, session.fork_of)
-        for child in list(session.subagents) + list(session.forks):
+        for child in list(session.subagents) + list(session.approval_reviews) + list(session.forks):
             child.id = make_global_id(source_id, child.id)
             if child.parent_session_id:
                 child.parent_session_id = make_global_id(source_id, child.parent_session_id)
