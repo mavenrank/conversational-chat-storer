@@ -13,7 +13,9 @@ import type {
 } from "./types";
 
 async function get<T>(path: string): Promise<T> {
-  const response = await fetch(path, { headers: { Accept: "application/json" } });
+  const response = await fetch(path, {
+    headers: { Accept: "application/json" },
+  });
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText} — ${path}`);
   }
@@ -23,7 +25,9 @@ async function get<T>(path: string): Promise<T> {
 export const api = {
   sources: () => get<SourceStatus[]>("/api/sources"),
 
-  sessions: async (params: { sources?: string[]; includeSubagents?: boolean } = {}) => {
+  sessions: async (
+    params: { sources?: string[]; includeSubagents?: boolean } = {},
+  ) => {
     const query = new URLSearchParams();
     params.sources?.forEach((s) => query.append("source", s));
     if (params.includeSubagents) query.set("include_subagents", "true");
@@ -48,7 +52,8 @@ export const api = {
 
   markdown: async (id: string) => {
     const response = await fetch(`/api/sessions/${encodeURI(id)}/markdown`);
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    if (!response.ok)
+      throw new Error(`${response.status} ${response.statusText}`);
     return response.text();
   },
 
@@ -57,13 +62,20 @@ export const api = {
 
   stats: () => get<Stats>("/api/stats"),
   costs: () => get<CostStats>("/api/costs"),
+  refreshCosts: async () => {
+    const response = await fetch("/api/costs/refresh", { method: "POST" });
+    if (!response.ok)
+      throw new Error(`${response.status} ${response.statusText}`);
+    return (await response.json()) as CostStats;
+  },
 
   archive: {
     stats: () => get<ArchiveStats>("/api/archive"),
     sessions: () => get<SessionSummary[]>("/api/archive/sessions"),
     run: async () => {
       const response = await fetch("/api/archive/run", { method: "POST" });
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      if (!response.ok)
+        throw new Error(`${response.status} ${response.statusText}`);
       return (await response.json()) as ArchiveResult;
     },
   },

@@ -21,7 +21,11 @@ export function TabBar({
   if (tabs.length === 0) return null;
 
   return (
-    <div role="tablist" aria-label="Open chats" className="flex h-9 shrink-0 items-stretch gap-1 overflow-x-auto border-b border-border bg-muted/30 px-2 pt-1">
+    <div
+      role="tablist"
+      aria-label="Open chats"
+      className="flex h-9 shrink-0 items-stretch gap-1 overflow-x-auto border-b border-border bg-muted/30 px-2 pt-1"
+    >
       {tabs.map((tab) => {
         const active = tab.id === activeId;
         return (
@@ -32,7 +36,12 @@ export function TabBar({
             tabIndex={0}
             onClick={() => onActivate(tab.id)}
             onDoubleClick={() => onPin(tab.id)}
-            onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onActivate(tab.id); } }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onActivate(tab.id);
+              }
+            }}
             onAuxClick={(event) => {
               // Middle-click closes, as in a browser.
               if (event.button === 1) {
@@ -49,7 +58,13 @@ export function TabBar({
                 : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
             )}
           >
-            <SourceIcon source={tab.source as SourceId} className={cn("h-3.5 w-3.5", SOURCE_STYLE[tab.source as SourceId]?.text)} />
+            <SourceIcon
+              source={tab.source as SourceId}
+              className={cn(
+                "h-3.5 w-3.5",
+                SOURCE_STYLE[tab.source as SourceId]?.text,
+              )}
+            />
             <span
               className={cn(
                 "min-w-0 flex-1 truncate",

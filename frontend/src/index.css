@@ -180,8 +180,9 @@
 
   /* Geist is self-hosted; the rest are system fallbacks for the first paint
      and for the case where the font files fail to load. */
-  --font-sans: "Geist Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    Roboto, sans-serif;
+  --font-sans:
+    "Geist Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
   --font-mono: var(--font-sans);
 }
 
@@ -220,14 +221,32 @@
     text-transform: uppercase;
   }
 
-  pre, code, kbd, samp { font-family: var(--font-sans); }
+  pre,
+  code,
+  kbd,
+  samp {
+    font-family: var(--font-sans);
+  }
 
-  .transcript { container-type: inline-size; container-name: transcript; }
-  .prose-body { font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
-  .prose-body pre { overflow-wrap: normal; }
-  details[open] .details-chevron { transform: rotate(90deg); }
+  .transcript {
+    container-type: inline-size;
+    container-name: transcript;
+  }
+  .prose-body {
+    font-size: 13px;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+  .prose-body pre {
+    overflow-wrap: normal;
+  }
+  details[open] .details-chevron {
+    transform: rotate(90deg);
+  }
 
-  .resize-handle[data-separator="active"] { background: hsl(var(--ring) / .6); }
+  .resize-handle[data-separator="active"] {
+    background: hsl(var(--ring) / 0.6);
+  }
 
   ::selection {
     background: hsl(var(--c-user) / 0.35);
@@ -256,20 +275,46 @@
   }
 }
 
-  @container transcript (min-width: 650px) {
-    .transcript-header { padding: 16px 24px; }
-    .transcript-header h1 { font-size: 18px; }
-    .prose-body { font-size: 14px; }
-    .message-user { margin: 20px 24px; padding: 16px 20px; }
-    .message-agent { margin-left: 24px; margin-right: 24px; padding-left: 20px; }
+@container transcript (min-width: 650px) {
+  .transcript-header {
+    padding: 16px 24px;
   }
-  @container transcript (max-width: 440px) {
-    .transcript-header { padding: 12px; }
-    .transcript-header h1 { font-size: 15px; }
-    .message-user { margin: 12px 10px; padding: 12px; }
-    .message-agent { margin-left: 10px; margin-right: 10px; padding-left: 12px; }
-    .message-model { display: none; }
+  .transcript-header h1 {
+    font-size: 18px;
   }
+  .prose-body {
+    font-size: 14px;
+  }
+  .message-user {
+    margin: 20px 24px;
+    padding: 16px 20px;
+  }
+  .message-agent {
+    margin-left: 24px;
+    margin-right: 24px;
+    padding-left: 20px;
+  }
+}
+@container transcript (max-width: 440px) {
+  .transcript-header {
+    padding: 12px;
+  }
+  .transcript-header h1 {
+    font-size: 15px;
+  }
+  .message-user {
+    margin: 12px 10px;
+    padding: 12px;
+  }
+  .message-agent {
+    margin-left: 10px;
+    margin-right: 10px;
+    padding-left: 12px;
+  }
+  .message-model {
+    display: none;
+  }
+}
 
 @layer utilities {
   /* Shared easing so panels, tabs and accordions feel like one system. */
@@ -308,5 +353,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

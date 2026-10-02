@@ -16,7 +16,12 @@ export interface HeavyMeta {
 }
 
 export type ToolDetail =
-  | ({ category: "file_read"; path: string; content: string; truncated: boolean } & HeavyMeta)
+  | ({
+      category: "file_read";
+      path: string;
+      content: string;
+      truncated: boolean;
+    } & HeavyMeta)
   | ({ category: "file_write"; path: string; content: string } & HeavyMeta)
   | ({
       category: "file_edit";
@@ -27,7 +32,12 @@ export type ToolDetail =
       additions: number;
       deletions: number;
     } & HeavyMeta)
-  | ({ category: "command"; command: string; output: string; exit_code: number | null } & HeavyMeta)
+  | ({
+      category: "command";
+      command: string;
+      output: string;
+      exit_code: number | null;
+    } & HeavyMeta)
   | ({ category: "search"; query: string; output: string } & HeavyMeta)
   | ({
       category: "subagent";
@@ -37,11 +47,21 @@ export type ToolDetail =
       result: string;
       child_session_id: string | null;
     } & HeavyMeta)
-  | ({ category: "generic"; input: Record<string, unknown>; output: string } & HeavyMeta);
+  | ({
+      category: "generic";
+      input: Record<string, unknown>;
+      output: string;
+    } & HeavyMeta);
 
 export type Block =
   | { kind: "text"; text: string }
-  | { kind: "thinking"; text: string; subject: string | null; elided: boolean; size_bytes: number }
+  | {
+      kind: "thinking";
+      text: string;
+      subject: string | null;
+      elided: boolean;
+      size_bytes: number;
+    }
   | {
       kind: "tool_use";
       tool_id: string | null;
@@ -114,6 +134,9 @@ export interface CostEstimate {
   priced_requests: number;
   unpriced_requests: number;
   unpriced_models: string[];
+  missing_usage_tokens: number;
+  calculated_at: string | null;
+  is_stale: boolean;
   complete: boolean;
   rates_verified_at: string;
 }
@@ -125,6 +148,8 @@ export interface CostStats {
   processed_sessions: number;
   estimated_sessions: number;
   unpriced_sessions: number;
+  failed_sessions: number;
+  error: string | null;
   unpriced_models: string[];
   updated_at: string | null;
   running: boolean;
@@ -172,7 +197,6 @@ export interface Stats {
   by_source: Record<string, number>;
   by_model: Record<string, number>;
 }
-
 
 export interface ArchiveStats {
   session_count: number;

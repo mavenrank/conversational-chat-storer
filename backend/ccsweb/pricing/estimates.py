@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 
@@ -42,13 +43,19 @@ def price_request(model: str | None, provider: str | None, usage: Usage) -> floa
     return (inputs + output) / 1_000_000
 
 
-def estimate(requests: Iterable[tuple[str | None, str | None, Usage]]) -> CostEstimate:
-    result = CostEstimate(rates_verified_at=rates()["verified_at"])
+def estimate(
+    requests: Iterable[tuple[str | None, str | None, Usage]], expected_usage: Usage | None = None
+) -> CostEstimate:
+    result = CostEstimate(
+        rates_verified_at=rates()["verified_at"], calculated_at=datetime.now(UTC).isoformat()
+    )
     total = 0.0
     unknown = set()
+    observed = Usage()
     for model, provider, usage in requests:
         if usage.total_tokens == 0:
             continue
+        observed = observed + usage
         cost = price_request(model, provider, usage)
         if cost is None:
             result.unpriced_requests += 1
@@ -58,7 +65,22 @@ def estimate(requests: Iterable[tuple[str | None, str | None, Usage]]) -> CostEs
             total += cost
     result.estimated_usd = round(total, 6) if result.priced_requests else None
     result.unpriced_models = sorted(unknown)
-    result.complete = bool(result.priced_requests and not result.unpriced_requests)
+    fields = (
+        "input_tokens",
+        "output_tokens",
+        "cached_tokens",
+        "thinking_tokens",
+        "cache_write_tokens",
+        "cache_write_1h_tokens",
+    )
+    result.missing_usage_tokens = observed.tool_tokens + (
+        sum(max(0, getattr(expected_usage, key) - getattr(observed, key)) for key in fields)
+        if expected_usage
+        else 0
+    )
+    result.complete = bool(
+        result.priced_requests and not result.unpriced_requests and not result.missing_usage_tokens
+    )
     return result
 
 

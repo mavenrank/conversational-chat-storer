@@ -181,6 +181,12 @@ def costs() -> dict:
     return _costs.snapshot()
 
 
+@router.post("/costs/refresh")
+def refresh_costs() -> dict:
+    """Re-read local usage immediately; concurrent refresh requests share one worker."""
+    return _costs.snapshot(force=True)
+
+
 class ArchiveStatsOut(BaseModel):
     session_count: int
     by_source: dict[str, int]

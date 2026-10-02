@@ -1,3 +1,5 @@
+from threading import Event
+
 import pytest
 
 from ccsweb.models import Message, SessionDetail, SessionSummary, TextBlock, Usage
@@ -109,4 +111,95 @@ def test_cost_service_preserves_recorded_zero_and_invalidates_changed_files(tmp_
     # A detail may have fuller model/count information than its fast summary.
     assert service.session(summary.model_copy(update={"models": ["extra"]})) is not None
     path.write_text(path.read_text() + "\n")
+    stale = service.session(summary)
+    assert stale.estimated_usd == 0.0002
+    assert stale.is_stale and not stale.complete
+    service._calculate()
+    assert not service.session(summary).is_stale
+
+
+def test_missing_ledger_usage_and_unpriced_tool_tokens_make_estimates_partial():
+    usage = Usage(input_tokens=100, output_tokens=20, tool_tokens=5)
+    result = estimate(
+        [("gpt-6.1-sol", "openai", usage)], expected_usage=Usage(input_tokens=200, output_tokens=20)
+    )
+    assert result.estimated_usd == 0.0004
+    assert result.missing_usage_tokens == 105
+    assert not result.complete
+
+
+def test_failed_session_is_retried_without_requiring_a_file_change(tmp_path):
+    path = tmp_path / "claude.jsonl"
+    path.write_text("unchanged")
+    summary = SessionSummary(id="claude:c", source="claude", source_path=str(path))
+
+    class RegistryStub:
+        fail = True
+
+        def list_sessions(self, **kwargs):
+            return [summary]
+
+        def get_session(self, id):
+            if self.fail:
+                raise RuntimeError("Temporary read failure")
+            return SessionDetail(
+                id=id,
+                source="claude",
+                messages=[
+                    Message(
+                        id="m",
+                        role="assistant",
+                        model="claude-opus-5",
+                        usage=Usage(input_tokens=100),
+                    )
+                ],
+            )
+
+    registry = RegistryStub()
+    service = CostService(registry)
+    service._calculate()
+    assert service._stats["failed_sessions"] == 1
     assert service.session(summary) is None
+    registry.fail = False
+    service._calculate()
+    assert service._stats["failed_sessions"] == 0
+    assert service.session(summary).complete
+
+
+def test_background_refresh_coalesces_requests_and_manual_refresh_bypasses_throttle():
+    entered, release, finished = Event(), Event(), Event()
+
+    class RegistryStub:
+        calls = 0
+
+        def list_sessions(self, **kwargs):
+            self.calls += 1
+            entered.set()
+            assert release.wait(2)
+            return []
+
+    class ObservedService(CostService):
+        def _refresh(self):
+            super()._refresh()
+            finished.set()
+
+    registry = RegistryStub()
+    service = ObservedService(registry)
+    service._stats = {"recorded_usd": 2.0, "estimated_usd": 3.0, "processed_sessions": 7}
+    refreshing = service.snapshot()
+    assert refreshing["running"]
+    assert refreshing["processed_sessions"] == 0
+    assert refreshing["recorded_usd"] == 2.0
+    assert refreshing["estimated_usd"] == 3.0
+    assert entered.wait(2)
+    assert service.snapshot(force=True)["running"]
+    assert registry.calls == 1
+    release.set()
+    assert finished.wait(2)
+    assert not service.snapshot()["running"]
+    assert registry.calls == 1
+    entered.clear()
+    finished.clear()
+    service.snapshot(force=True)
+    assert entered.wait(2) and finished.wait(2)
+    assert registry.calls == 2

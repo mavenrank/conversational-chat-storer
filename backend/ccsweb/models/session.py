@@ -157,6 +157,9 @@ class CostEstimate(BaseModel):
     priced_requests: int = 0
     unpriced_requests: int = 0
     unpriced_models: list[str] = Field(default_factory=list)
+    missing_usage_tokens: int = 0
+    calculated_at: str | None = None
+    is_stale: bool = False
     complete: bool = False
     rates_verified_at: str = ""
 

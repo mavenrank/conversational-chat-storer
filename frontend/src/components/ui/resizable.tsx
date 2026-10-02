@@ -4,8 +4,17 @@ import { Group, Panel, Separator } from "react-resizable-panels";
 import { cn } from "@/lib/utils";
 
 // shadcn/ui's resizable composition, using the v4 panel primitives.
-export function ResizablePanelGroup({ className, ...props }: ComponentProps<typeof Group>) {
-  return <Group data-slot="resizable-panel-group" className={cn("h-full w-full min-w-0", className)} {...props} />;
+export function ResizablePanelGroup({
+  className,
+  ...props
+}: ComponentProps<typeof Group>) {
+  return (
+    <Group
+      data-slot="resizable-panel-group"
+      className={cn("h-full w-full min-w-0", className)}
+      {...props}
+    />
+  );
 }
 
 export const ResizablePanel = Panel;
@@ -25,7 +34,11 @@ export function ResizableHandle({
       )}
       {...props}
     >
-      {withHandle && <span className="grid h-8 w-[11px] place-items-center rounded-full border border-border bg-background text-muted-foreground"><GripVertical size={11} /></span>}
+      {withHandle && (
+        <span className="grid h-8 w-[11px] place-items-center rounded-full border border-border bg-background text-muted-foreground">
+          <GripVertical size={11} />
+        </span>
+      )}
     </Separator>
   );
 }
